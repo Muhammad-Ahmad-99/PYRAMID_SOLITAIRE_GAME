@@ -3,10 +3,18 @@
 #include <ctime>
 using namespace std;
 
+enum GameState {
+    MAIN_MENU,
+    INSTRUCTIONS,
+    PLAYING,
+    GAME_OVER,
+    EXIT_GAME
+};
+
 class Card {
 public:
-    int value;      // 1-13
-    int suit;       // 0-3
+    int value;
+    int suit;
     bool faceUp;
     bool removed;
 
@@ -37,7 +45,7 @@ public:
 
     void append(int value, int suit) {
         Card* newCard = new Card(value, suit);
-        if (!head) 
+        if (!head)
             head = tail = newCard;
         else {
             tail->next = newCard;
@@ -51,7 +59,7 @@ public:
         for (Card* a = head; a; a = a->next) {
             Card* b = head;
             int steps = rand() % 52;
-            while (steps-- && b->next) 
+            while (steps-- && b->next)
                 b = b->next;
             swap(a->value, b->value);
             swap(a->suit, b->suit);
@@ -67,20 +75,30 @@ private:
 
     int score;
     time_t startTime;
+
     bool gameWon;
     bool gameLost;
 
+    GameState state;
+
 public:
     PyramidSolitaire() {
+        state = MAIN_MENU;
+    }
+
+    void initGame() {
+        deck = DoublyLinkedList();
         createDeck();
         deck.shuffle();
         makePyramid();
-        selected = nullptr;
 
+        selected = nullptr;
         score = 0;
         startTime = time(0);
         gameWon = false;
         gameLost = false;
+
+        state = PLAYING;
     }
 
     void createDeck() {
@@ -100,7 +118,6 @@ public:
                 curr = curr->next;
             }
         }
-
         stockTop = curr;
     }
 
@@ -112,9 +129,9 @@ public:
     }
 
     bool canRemove(Card* a, Card* b) {
-        if (!a) 
+        if (!a)
             return false;
-        if (!b && a->value == 13 && isFree(a)) 
+        if (!b && a->value == 13 && isFree(a))
             return true;
         if (a && b && isFree(a) && isFree(b) && (a->value + b->value == 13))
             return true;
@@ -123,7 +140,7 @@ public:
 
     void drawStock() {
         if (!stockTop) {
-            cout << "No more stock cards!\n";
+            cout << "No more stock!\n";
             return;
         }
         stockTop->faceUp = true;
@@ -134,18 +151,10 @@ public:
     void removePair(Card* a, Card* b = nullptr) {
         if (canRemove(a, b)) {
             a->removed = true;
-            if (b) 
+            if (b)
                 b->removed = true;
 
-            if (!b) {
-                score += 10;
-                cout << "Removed King " << a->value << endl;
-            }
-            else {
-                score += 20;
-                cout << "Removed pair " << a->value << "+" << b->value << endl;
-            }
-
+            score += (b ? 20 : 10);
             checkWin();
         }
         else {
@@ -176,7 +185,6 @@ public:
                 return curr;
             curr = curr->next;
         }
-        cout << "Card not found or not free!\n";
         return nullptr;
     }
 
@@ -188,78 +196,94 @@ public:
             curr = curr->next;
         }
         gameWon = true;
+        state = GAME_OVER;
     }
 
     void checkLose() {
-        int timeGap = difftime(time(0), startTime);
-        if (timeGap > 300) { 
+        if (difftime(time(0), startTime) > 300) {
             gameLost = true;
+            state = GAME_OVER;
         }
     }
 
-    void play() {
+    void run() {
         char choice;
 
-        while (true) {
-            checkLose();
+        while (state != EXIT_GAME) {
+            switch (state) {
 
-            int timeGap = difftime(time(0), startTime);
-            cout << "\nTime: " << timeGap << "s | Score: " << score << endl;
+            case MAIN_MENU:
+                cout << "\n=== PYRAMID SOLITAIRE ===\n";
+                cout << "1. Start Game\n";
+                cout << "2. Instructions\n";
+                cout << "3. Exit\n";
+                cout << "Choose: ";
+                cin >> choice;
 
-            if (gameWon) {
-                cout << "\nYOU WIN!" << endl;
-                cout << "Final Score : " << score << endl;
+                if (choice == '1')
+                    initGame();
+                else if (choice == '2')
+                    state = INSTRUCTIONS;
+                else if (choice == '3')
+                    state = EXIT_GAME;
                 break;
-            }
 
-            if (gameLost) {
-                cout << "\nGAME OVER (Time Up)" << endl;
-                cout << "Final Score : " << score << endl;
+            case INSTRUCTIONS:
+                cout << "\nMatch cards that sum to 13.\n";
+                cout << "King can be removed alone.\n";
+                cout << "Press any key to return.\n";
+                cin >> choice;
+                state = MAIN_MENU;
                 break;
-            }
 
-            cout << "\nPyramid:\n";
-            printPyramid();
+            case PLAYING:
+                checkLose();
 
-            cout << "\nOptions:\n";
-            cout << "d - Draw stock\n";
-            cout << "r - Remove card/pair\n";
-            cout << "q - Quit\n";
-            cout << "Choose: ";
-            cin >> choice;
+                cout << "\nTime: " << difftime(time(0), startTime)
+                    << "s | Score: " << score << endl;
 
-            if (choice == 'd' || choice == 'D') {
-                drawStock();
-            }
-            else if (choice == 'r' || choice == 'R') {
-                int v1, v2;
-                cout << "Enter first card value: ";
-                cin >> v1;
-                Card* c1 = findCard(v1);
+                printPyramid();
 
-                if (c1 && c1->value == 13) {
-                    removePair(c1);
+                cout << "d-Draw | r-Remove | q-Quit\n";
+                cin >> choice;
+
+                if (choice == 'd')
+                    drawStock();
+                else if (choice == 'r') {
+                    int v1, v2;
+                    cin >> v1;
+                    Card* c1 = findCard(v1);
+                    if (c1 && c1->value == 13) removePair(c1);
+                    else {
+                        cin >> v2;
+                        Card* c2 = findCard(v2);
+                        removePair(c1, c2);
+                    }
                 }
-                else {
-                    cout << "Enter second card value: ";
-                    cin >> v2;
-                    Card* c2 = findCard(v2);
-                    removePair(c1, c2);
-                }
-            }
-            else if (choice == 'q' || choice == 'Q') {
+                else if (choice == 'q')
+                    state = GAME_OVER;
                 break;
-            }
-            else {
-                cout << "Invalid option\n";
+
+            case GAME_OVER:
+                cout << (gameWon ? "\nYOU WIN!\n" : "\nGAME OVER\n");
+                cout << "Final Score: " << score << endl;
+                cout << "r-Restart | m-Menu | e-Exit\n";
+                cin >> choice;
+
+                if (choice == 'r')
+                    initGame();
+                else if (choice == 'm')
+                    state = MAIN_MENU;
+                else if (choice == 'e')
+                    state = EXIT_GAME;
+                break;
             }
         }
     }
 };
 
 int main() {
-    cout << "Welcome to Pyramid Solitaire!\n";
     PyramidSolitaire game;
-    game.play();
+    game.run();
     return 0;
 }
