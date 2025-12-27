@@ -1,5 +1,5 @@
+#include "raylib.h"
 #include <iostream>
-#include <cstdlib>
 #include <ctime>
 using namespace std;
 
@@ -7,8 +7,7 @@ enum GameState {
     MAIN_MENU,
     INSTRUCTIONS,
     PLAYING,
-    GAME_OVER,
-    EXIT_GAME
+    GAME_OVER
 };
 
 class Card {
@@ -18,39 +17,34 @@ public:
     bool faceUp;
     bool removed;
 
-    Card* prev;
     Card* next;
 
-    Card* leftChild;
-    Card* rightChild;
-
-    Card(int v, int s) {
+    Card(int v = 0, int s = 0) {
         value = v;
         suit = s;
         faceUp = false;
         removed = false;
-        prev = next = nullptr;
-        leftChild = rightChild = nullptr;
+        next = nullptr;
     }
 };
 
-class DoublyLinkedList {
+class Deck {
 public:
     Card* head;
     Card* tail;
 
-    DoublyLinkedList() {
+    Deck() {
         head = tail = nullptr;
     }
 
-    void append(int value, int suit) {
-        Card* newCard = new Card(value, suit);
+    void addCard(int v, int s) {
+        Card* c = new Card(v, s);
+
         if (!head)
-            head = tail = newCard;
+            head = tail = c;
         else {
-            tail->next = newCard;
-            newCard->prev = tail;
-            tail = newCard;
+            tail->next = c;
+            tail = c;
         }
     }
 
@@ -59,8 +53,10 @@ public:
         for (Card* a = head; a; a = a->next) {
             Card* b = head;
             int steps = rand() % 52;
+
             while (steps-- && b->next)
                 b = b->next;
+
             swap(a->value, b->value);
             swap(a->suit, b->suit);
         }
@@ -69,13 +65,11 @@ public:
 
 class PyramidSolitaire {
 private:
-    DoublyLinkedList deck;
+    Deck deck;
     Card* stockTop;
-    Card* selected;
 
     int score;
     time_t startTime;
-
     bool gameWon;
     bool gameLost;
 
@@ -87,12 +81,11 @@ public:
     }
 
     void initGame() {
-        deck = DoublyLinkedList();
+        deck = Deck();
         createDeck();
         deck.shuffle();
         makePyramid();
 
-        selected = nullptr;
         score = 0;
         startTime = time(0);
         gameWon = false;
@@ -102,9 +95,9 @@ public:
     }
 
     void createDeck() {
-        for (int suit = 0; suit < 4; suit++)
-            for (int value = 1; value <= 13; value++)
-                deck.append(value, suit);
+        for (int s = 0; s < 4; s++)
+            for (int v = 1; v <= 13; v++)
+                deck.addCard(v, s);
     }
 
     void makePyramid() {
@@ -113,177 +106,132 @@ public:
         for (int row = 0; row < 7; row++) {
             for (int col = 0; col <= row; col++) {
                 curr->faceUp = true;
-                curr->leftChild = curr->next;
-                curr->rightChild = (curr->next) ? curr->next->next : nullptr;
                 curr = curr->next;
             }
         }
         stockTop = curr;
     }
 
-    bool isFree(Card* c) {
-        if (!c || c->removed || !c->faceUp)
-            return false;
-        return (!c->leftChild || c->leftChild->removed) &&
-            (!c->rightChild || c->rightChild->removed);
-    }
-
-    bool canRemove(Card* a, Card* b) {
-        if (!a)
-            return false;
-        if (!b && a->value == 13 && isFree(a))
-            return true;
-        if (a && b && isFree(a) && isFree(b) && (a->value + b->value == 13))
-            return true;
-        return false;
-    }
-
-    void drawStock() {
-        if (!stockTop) {
-            cout << "No more stock!\n";
-            return;
-        }
-        stockTop->faceUp = true;
-        cout << "Drew card: " << stockTop->value << endl;
-        stockTop = stockTop->next;
-    }
-
-    void removePair(Card* a, Card* b = nullptr) {
-        if (canRemove(a, b)) {
-            a->removed = true;
-            if (b)
-                b->removed = true;
-
-            score += (b ? 20 : 10);
-            checkWin();
-        }
-        else {
-            cout << "Invalid move\n";
+    void update() {
+        if (state == PLAYING) {
+            int timeGap = difftime(time(0), startTime);
+            if (timeGap > 300) {
+                gameLost = true;
+                state = GAME_OVER;
+            }
         }
     }
 
-    void printPyramid() {
+    void render() {
+        ClearBackground(DARKGREEN);
+
+        switch (state) {
+        case MAIN_MENU:
+            DrawText("PYRAMID SOLITAIRE", 420, 180, 36, RAYWHITE);
+            DrawText("ENTER -> Start Game", 450, 260, 20, RAYWHITE);
+            DrawText("I -> Instructions", 460, 300, 20, RAYWHITE);
+            DrawText("ESC -> Exit", 480, 340, 20, RAYWHITE);
+            break;
+
+        case INSTRUCTIONS:
+            DrawText("INSTRUCTIONS", 470, 180, 32, RAYWHITE);
+            DrawText("Remove cards whose sum is 13", 350, 250, 20, RAYWHITE);
+            DrawText("King can be removed alone", 380, 290, 20, RAYWHITE);
+            DrawText("BACKSPACE -> Menu", 420, 340, 20, RAYWHITE);
+            break;
+
+        case PLAYING:
+            drawHUD();
+            drawPyramidPlaceholder();
+            drawStockPlaceholder();
+            break;
+
+        case GAME_OVER:
+            DrawText(gameWon ? "YOU WIN!" : "GAME OVER",
+                470, 200, 36,
+                gameWon ? GREEN : RED);
+            DrawText(TextFormat("Final Score: %d", score),
+                450, 260, 20, RAYWHITE);
+            DrawText("R - Restart | M - Menu",
+                420, 310, 20, RAYWHITE);
+            break;
+        }
+    }
+
+    void drawHUD() {
+        int timeGap = difftime(time(0), startTime);
+        DrawText(TextFormat("PYRAMID SOLITARE GAME"), 400, 20, 30, YELLOW);
+        DrawText(TextFormat("Score: %d", score), 20, 60, 20, RAYWHITE);
+        DrawText(TextFormat("Time: %d", timeGap), 20, 90, 20, RAYWHITE);
+    }
+
+    void drawPyramidPlaceholder() {
+        int startX = 400;
+        int startY = 120;
+        int cardW = 50;
+        int cardH = 70;
+
         Card* curr = deck.head;
         for (int row = 0; row < 7; row++) {
-            for (int i = 0; i < 6 - row; i++)
-                cout << "  ";
+            int x = startX - row * (cardW / 2);
             for (int col = 0; col <= row; col++) {
-                if (curr->removed)
-                    cout << " X ";
-                else
-                    cout << curr->value << " ";
+                if (!curr) 
+                    break;
+
+                DrawRectangle(x, startY + row * 80,
+                    cardW, cardH,
+                    curr->removed ? DARKGRAY : RAYWHITE);
+
+                DrawText(TextFormat("%d", curr->value),
+                    x + 18, startY + row * 80 + 25,
+                    20, BLACK);
+
                 curr = curr->next;
+                x += cardW + 5;
             }
-            cout << endl;
         }
     }
 
-    Card* findCard(int value) {
-        Card* curr = deck.head;
-        while (curr) {
-            if (curr->value == value && !curr->removed && curr->faceUp)
-                return curr;
-            curr = curr->next;
-        }
-        return nullptr;
+    void drawStockPlaceholder() {
+        DrawRectangle(80, 200, 60, 80, BROWN);
+        DrawText("STOCK", 85, 290, 18, RAYWHITE);
     }
 
-    void checkWin() {
-        Card* curr = deck.head;
-        while (curr) {
-            if (!curr->removed && curr->faceUp)
-                return;
-            curr = curr->next;
+    void handleInput() {
+        if (state == MAIN_MENU) {
+            if (IsKeyPressed(KEY_ENTER))
+                initGame();
+            if (IsKeyPressed(KEY_I))
+                state = INSTRUCTIONS;
         }
-        gameWon = true;
-        state = GAME_OVER;
-    }
-
-    void checkLose() {
-        if (difftime(time(0), startTime) > 300) {
-            gameLost = true;
-            state = GAME_OVER;
-        }
-    }
-
-    void run() {
-        char choice;
-
-        while (state != EXIT_GAME) {
-            switch (state) {
-
-            case MAIN_MENU:
-                cout << "\n=== PYRAMID SOLITAIRE ===\n";
-                cout << "1. Start Game\n";
-                cout << "2. Instructions\n";
-                cout << "3. Exit\n";
-                cout << "Choose: ";
-                cin >> choice;
-
-                if (choice == '1')
-                    initGame();
-                else if (choice == '2')
-                    state = INSTRUCTIONS;
-                else if (choice == '3')
-                    state = EXIT_GAME;
-                break;
-
-            case INSTRUCTIONS:
-                cout << "\nMatch cards that sum to 13.\n";
-                cout << "King can be removed alone.\n";
-                cout << "Press any key to return.\n";
-                cin >> choice;
+        else if (state == INSTRUCTIONS) {
+            if (IsKeyPressed(KEY_BACKSPACE))
                 state = MAIN_MENU;
-                break;
-
-            case PLAYING:
-                checkLose();
-
-                cout << "\nTime: " << difftime(time(0), startTime)
-                    << "s | Score: " << score << endl;
-
-                printPyramid();
-
-                cout << "d-Draw | r-Remove | q-Quit\n";
-                cin >> choice;
-
-                if (choice == 'd')
-                    drawStock();
-                else if (choice == 'r') {
-                    int v1, v2;
-                    cin >> v1;
-                    Card* c1 = findCard(v1);
-                    if (c1 && c1->value == 13) removePair(c1);
-                    else {
-                        cin >> v2;
-                        Card* c2 = findCard(v2);
-                        removePair(c1, c2);
-                    }
-                }
-                else if (choice == 'q')
-                    state = GAME_OVER;
-                break;
-
-            case GAME_OVER:
-                cout << (gameWon ? "\nYOU WIN!\n" : "\nGAME OVER\n");
-                cout << "Final Score: " << score << endl;
-                cout << "r-Restart | m-Menu | e-Exit\n";
-                cin >> choice;
-
-                if (choice == 'r')
-                    initGame();
-                else if (choice == 'm')
-                    state = MAIN_MENU;
-                else if (choice == 'e')
-                    state = EXIT_GAME;
-                break;
-            }
+        }
+        else if (state == GAME_OVER) {
+            if (IsKeyPressed(KEY_R))
+                initGame();
+            if (IsKeyPressed(KEY_M))
+                state = MAIN_MENU;
         }
     }
 };
 
 int main() {
+    InitWindow(1200, 800, "Pyramid Solitaire");
+    SetTargetFPS(60);
+
     PyramidSolitaire game;
-    game.run();
+
+    while (!WindowShouldClose()) {
+        game.handleInput();
+        game.update();
+
+        BeginDrawing();
+        game.render();
+        EndDrawing();
+    }
+
+    CloseWindow();
     return 0;
 }
