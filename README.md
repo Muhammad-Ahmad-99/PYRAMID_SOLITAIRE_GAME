@@ -75,8 +75,8 @@ This project was developed to fulfill the requirements of the **Data Structures 
 * Muhammad Ali
 * Muhammad Bilal
 * Aliya Ashraf
-* Mishaal
-* Hafsa
+* Mishaal Aqdas
+* Hafsa Gul
 
 ---
 
