@@ -268,25 +268,35 @@ private:
     Rectangle stockRect;
     const char* SAVE_FILE = "savegame.dat";
 
+    //----------------------
+    Sound cardSelectSound;
+    Sound cardMatchSound;
+    Sound cardMismatchSound;
+    Sound stockDrawSound;
+    Sound backgroundMusic;
+    float soundVolume;
+    bool isMuted;
+
     struct SaveData {
-    int score;
-    int moves;
-    float gameTime;
-    bool gameWon;
-    bool gameLost;
+        int score;
+        int moves;
+        float gameTime;
+        bool gameWon;
+        bool gameLost;
 
-    int cardValues[52];
-    int cardSuits[52];
-    bool cardInPlay[52];
-    bool cardFaceUp[52];
+        int cardValues[52];
+        int cardSuits[52];
+        bool cardInPlay[52];
+        bool cardFaceUp[52];
 
-    int pyramidCardIndices[28];
-    int stockCardIndices[24];
-    int stockSize;
-    int wasteCardIndices[24];
-    int wasteHistorySize;
-    int currentWasteIndex;
-};
+        int pyramidCardIndices[28];
+        int stockCardIndices[24];
+        int stockSize;
+        int wasteCardIndices[24];
+        int wasteHistorySize;
+        int currentWasteIndex;
+
+    };
 
 public:
     PyramidSolitaire() {
@@ -310,6 +320,12 @@ public:
 
         loadCardTextures();
         stockRect = { 0, 0, 0, 0 };
+
+        //---------------
+        InitAudioDevice();
+        soundVolume = 0.7f;
+        isMuted = false;
+        loadAllSounds();
     }
 
     ~PyramidSolitaire() {
@@ -320,8 +336,151 @@ public:
         }
         UnloadTexture(background);
         UnloadTexture(stockTexture);
+        unloadAllSounds();
+        CloseAudioDevice();
         clearPyramid();
     }
+    //---------------------------------
+    void loadAllSounds() {
+        
+        cardSelectSound = { 0 };
+        cardMatchSound = { 0 };
+        cardMismatchSound = { 0 };
+        stockDrawSound = { 0 };
+        backgroundMusic = { 0 };
+
+        
+        if (FileExists("sounds/card_select.mp3"))
+            cardSelectSound = LoadSound("sounds/card_select.mp3");
+
+        if (FileExists("sounds/card_match.mp3"))
+            cardMatchSound = LoadSound("sounds/card_match.mp3");
+
+        if (FileExists("sounds/card_mismatch.wav"))
+            cardMismatchSound = LoadSound("sounds/card_mismatch.wav");
+
+        if (FileExists("sounds/stock_draw.wav"))
+            stockDrawSound = LoadSound("sounds/stock_draw.wav");
+
+        // Load background music
+        if (FileExists("sounds/background_music.mp3"))
+            backgroundMusic = LoadMusicStream("sounds/background_music.mp3");
+
+        // Start playing background music if loaded
+        if (backgroundMusic.frameCount > 0) {
+            PlayMusicStream(backgroundMusic);
+            SetMusicVolume(backgroundMusic, isMuted ? 0.0f : soundVolume * 0.5f);
+        }
+
+        setSoundVolume(soundVolume);
+    }
+
+    void unloadAllSounds() {
+        if (cardSelectSound.frameCount > 0)
+            UnloadSound(cardSelectSound);
+
+        if (cardMatchSound.frameCount > 0)
+            UnloadSound(cardMatchSound);
+
+        if (cardMismatchSound.frameCount > 0)
+            UnloadSound(cardMismatchSound);
+
+        if (stockDrawSound.frameCount > 0)
+            UnloadSound(stockDrawSound);
+
+        if (backgroundMusic.frameCount > 0)
+            UnloadMusicStream(backgroundMusic);
+    }
+
+    void setSoundVolume(float volume) {
+        soundVolume = volume;
+
+        if (!isMuted) {
+            if (cardSelectSound.frameCount > 0)
+                SetSoundVolume(cardSelectSound, volume);
+
+            if (cardMatchSound.frameCount > 0)
+                SetSoundVolume(cardMatchSound, volume);
+
+            if (cardMismatchSound.frameCount > 0)
+                SetSoundVolume(cardMismatchSound, volume);
+
+            if (stockDrawSound.frameCount > 0)
+                SetSoundVolume(stockDrawSound, volume);
+
+            if (backgroundMusic.frameCount > 0)
+                SetMusicVolume(backgroundMusic, volume * 0.4f);
+        }
+    }
+
+    void toggleMute() {
+        isMuted = !isMuted;
+
+        if (isMuted) {
+            if (cardSelectSound.frameCount > 0)
+                SetSoundVolume(cardSelectSound, 0.0f);
+
+            if (cardMatchSound.frameCount > 0)
+                SetSoundVolume(cardMatchSound, 0.0f);
+
+            if (cardMismatchSound.frameCount > 0)
+                SetSoundVolume(cardMismatchSound, 0.0f);
+
+            if (stockDrawSound.frameCount > 0)
+                SetSoundVolume(stockDrawSound, 0.0f);
+
+            if (backgroundMusic.frameCount > 0)
+                SetMusicVolume(backgroundMusic, 0.0f);
+        }
+        else {
+            if (cardSelectSound.frameCount > 0)
+                SetSoundVolume(cardSelectSound, soundVolume);
+
+            if (cardMatchSound.frameCount > 0)
+                SetSoundVolume(cardMatchSound, soundVolume);
+
+            if (cardMismatchSound.frameCount > 0)
+                SetSoundVolume(cardMismatchSound, soundVolume);
+
+            if (stockDrawSound.frameCount > 0)
+                SetSoundVolume(stockDrawSound, soundVolume);
+
+            if (backgroundMusic.frameCount > 0)
+                SetMusicVolume(backgroundMusic, soundVolume * 0.5f);
+        }
+    }
+
+    void updateBackgroundMusic() {
+        if (backgroundMusic.frameCount > 0) {
+            UpdateMusicStream(backgroundMusic);
+
+            if (GetMusicTimePlayed(backgroundMusic) >= GetMusicTimeLength(backgroundMusic)) {
+                StopMusicStream(backgroundMusic);
+                PlayMusicStream(backgroundMusic);
+            }
+        }
+    }
+
+    void playCardSelectSound() {
+        if (cardSelectSound.frameCount > 0 && !isMuted)
+            PlaySound(cardSelectSound);
+    }
+
+    void playCardMatchSound() {
+        if (cardMatchSound.frameCount > 0 && !isMuted)
+            PlaySound(cardMatchSound);
+    }
+
+    void playCardMismatchSound() {
+        if (cardMismatchSound.frameCount > 0 && !isMuted)
+            PlaySound(cardMismatchSound);
+    }
+
+    void playStockDrawSound() {
+        if (stockDrawSound.frameCount > 0 && !isMuted)
+            PlaySound(stockDrawSound);
+    }
+
 
     void loadCardTextures() {
         const char* suits[4] = { "H", "D", "C", "S" };
@@ -758,6 +917,14 @@ public:
             selectedNode2 = nullptr;
             return;
         }
+        //--------------------
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+        Rectangle muteBtn = {20, 20, 50, 50 };
+        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, muteBtn)) {
+            toggleMute();
+            return;
+        }
     }
 
     Rectangle getPyramidCardRect(int row, int col) {
@@ -908,13 +1075,13 @@ public:
         Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 50), 300, 60 };
 
         if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, playBtn)) {
-            if (loadGame()) 
+            if (loadGame())
             {
-            currentState = PLAYING;
+                currentState = PLAYING;
             }
-        else
+            else
             {
-            initGame();
+                initGame();
             }
         }
         else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, instructBtn)) {
@@ -953,6 +1120,20 @@ public:
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
         DrawText(TextFormat("Moves: %d", moves), sw - 150, 20, 25, YELLOW);
+        //---------------------------
+        Rectangle muteBtn = { 20, 20, 50, 50 };
+        DrawRectangleRec(muteBtn, isMuted ? RED : GRAY);
+        DrawRectangleLinesEx(muteBtn, 2, WHITE);
+        if (isMuted) {
+            DrawText("X", 35, 35, 30, WHITE);  
+        }
+        else {
+            DrawText("♪", 35, 35, 30, WHITE);  
+        }
+        Vector2 mousePos = GetMousePosition();
+        if (CheckCollisionPointRec(mousePos, muteBtn)) {
+            DrawText(isMuted ? "Sound OFF" : "Sound ON", 80, 25, 18, YELLOW);
+        }
 
         for (int row = 0; row < 7; row++) {
             PyramidNode* current = pyramidRows[row];
@@ -1021,6 +1202,7 @@ public:
     }
 
     void update(float deltaTime) {
+        updateBackgroundMusic();
         if (state == MAIN_MENU) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 Vector2 mousePos = GetMousePosition();
@@ -1035,6 +1217,10 @@ public:
                 handleInstructionsClick((int)mousePos.x, (int)mousePos.y);
             }
             return;
+        }
+        //---------------------
+        if (IsKeyPressed(KEY_M)) {
+            toggleMute();
         }
 
         if (!gameWon && !gameLost) {
@@ -1170,9 +1356,9 @@ public:
         gameTime = data.gameTime;
         gameWon = data.gameWon;
         gameLost = data.gameLost;
-        
+
         isNewGame = false;
-        
+
         currentGameScoreIndex = -1;
         for (int i = 0; i < highScoreCount; i++) {
             if (highScores[i] == score) {
@@ -1278,7 +1464,7 @@ public:
             cout << "Save file deleted." << endl;
         }
     }
-    };
+};
 int main() {
     const int screenWidth = 1200;
     const int screenHeight = 800;
