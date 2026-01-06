@@ -3,7 +3,7 @@
 #include <ctime>
 #include <fstream>
 #include <cstdlib>
-
+#include <fstream>
 using namespace std;
 
 // Game State Enum
@@ -266,6 +266,27 @@ private:
     const int CARD_SPACING = 20;
 
     Rectangle stockRect;
+    const char* SAVE_FILE = "savegame.dat";
+
+    struct SaveData {
+    int score;
+    int moves;
+    float gameTime;
+    bool gameWon;
+    bool gameLost;
+
+    int cardValues[52];
+    int cardSuits[52];
+    bool cardInPlay[52];
+    bool cardFaceUp[52];
+
+    int pyramidCardIndices[28];
+    int stockCardIndices[24];
+    int stockSize;
+    int wasteCardIndices[24];
+    int wasteHistorySize;
+    int currentWasteIndex;
+};
 
 public:
     PyramidSolitaire() {
@@ -887,7 +908,14 @@ public:
         Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 50), 300, 60 };
 
         if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, playBtn)) {
+            if (loadGame()) 
+            {
+            currentState = PLAYING;
+            }
+        else
+            {
             initGame();
+            }
         }
         else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, instructBtn)) {
             state = INSTRUCTIONS;
@@ -1027,11 +1055,227 @@ public:
             int sh = GetScreenHeight();
             Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
             if (CheckCollisionPointRec(mousePos, restartBtn)) {
+                saveGame();
                 initGame();
                 return;
             }
 
             handleMouseClick((int)mousePos.x, (int)mousePos.y);
+        }
+    }
+
+    void saveGame() {
+        SaveData data = {};
+
+        data.score = score;
+        data.moves = moves;
+        data.gameTime = gameTime;
+        data.gameWon = gameWon;
+        data.gameLost = gameLost;
+
+        for (int i = 0; i < 52; i++) {
+            data.cardValues[i] = allCards[i].value;
+            data.cardSuits[i] = allCards[i].suit;
+            data.cardInPlay[i] = allCards[i].inPlay;
+            data.cardFaceUp[i] = allCards[i].faceUp;
+        }
+
+        int pyramidIndex = 0;
+        for (int row = 0; row < 7; row++) {
+            PyramidNode* current = pyramidRows[row];
+            while (current) {
+                for (int i = 0; i < 52; i++) {
+                    if (current->card == &allCards[i]) {
+                        data.pyramidCardIndices[pyramidIndex++] = i;
+                        break;
+                    }
+                }
+                current = current->nextInRow;
+            }
+        }
+
+        data.stockSize = stock.getSize();
+        int stockIndex = 0;
+        ListNode<Card*>* stockNode = stock.getHead();
+        while (stockNode) {
+            for (int i = 0; i < 52; i++) {
+                if (stockNode->data == &allCards[i]) {
+                    data.stockCardIndices[stockIndex++] = i;
+                    break;
+                }
+            }
+            stockNode = stockNode->next;
+        }
+
+        data.wasteHistorySize = wasteHistory.getSize();
+        int wasteIndex = 0;
+        ListNode<Card*>* wasteNode = wasteHistory.getHead();
+        while (wasteNode) {
+            for (int i = 0; i < 52; i++) {
+                if (wasteNode->data == &allCards[i]) {
+                    data.wasteCardIndices[wasteIndex++] = i;
+                    break;
+                }
+            }
+            wasteNode = wasteNode->next;
+        }
+
+        data.currentWasteIndex = -1;
+        if (currentWasteCard) {
+            for (int i = 0; i < 52; i++) {
+                if (currentWasteCard == &allCards[i]) {
+                    data.currentWasteIndex = i;
+                    break;
+                }
+            }
+        }
+
+        ofstream out(SAVE_FILE, ios::binary);
+        if (out.is_open()) {
+            out.write((char*)&data, sizeof(SaveData));
+            out.close();
+            cout << "Game saved successfully!" << endl;
+        }
+    }
+
+    bool loadGame() {
+        ifstream in(SAVE_FILE, ios::binary);
+        if (!in.is_open()) {
+            return false;
+        }
+
+        SaveData data = {};
+        in.read((char*)&data, sizeof(SaveData));
+        in.close();
+
+        clearPyramid();
+        stock.clear();
+        stockBackup.clear();
+        wasteHistory.clear();
+
+        selectedCard1 = nullptr;
+        selectedCard2 = nullptr;
+        selectedNode1 = nullptr;
+        selectedNode2 = nullptr;
+
+        for (int i = 0; i < 52; i++) {
+            allCards[i].value = data.cardValues[i];
+            allCards[i].suit = data.cardSuits[i];
+            allCards[i].inPlay = data.cardInPlay[i];
+            allCards[i].faceUp = data.cardFaceUp[i];
+        }
+
+        score = data.score;
+        moves = data.moves;
+        gameTime = data.gameTime;
+        gameWon = data.gameWon;
+        gameLost = data.gameLost;
+        
+        isNewGame = false;
+        
+        currentGameScoreIndex = -1;
+        for (int i = 0; i < highScoreCount; i++) {
+            if (highScores[i] == score) {
+                currentGameScoreIndex = i;
+                break;
+            }
+        }
+
+        PyramidNode* prevRowHeads[7];
+        for (int i = 0; i < 7; i++)
+        {
+            prevRowHeads[i] = NULL;
+        }
+
+        int pyramidCardIdx = 0;
+
+        for (int row = 0; row < 7; row++) {
+            PyramidNode* rowHead = nullptr;
+            PyramidNode* rowTail = nullptr;
+
+            for (int col = 0; col <= row; col++) {
+                int cardArrayIndex = data.pyramidCardIndices[pyramidCardIdx++];
+                Card* card = &allCards[cardArrayIndex];
+                PyramidNode* node = new PyramidNode(card, row, col);
+
+                if (!rowHead) {
+                    rowHead = node;
+                    rowTail = node;
+                }
+                else {
+                    rowTail->nextInRow = node;
+                    rowTail = node;
+                }
+
+                if (row > 0) {
+                    if (col > 0) {
+                        PyramidNode* leftParent = prevRowHeads[row - 1];
+                        int count = 0;
+                        while (leftParent && count < col - 1) {
+                            leftParent = leftParent->nextInRow;
+                            count++;
+                        }
+                        if (leftParent) {
+                            leftParent->right = node;
+                        }
+                    }
+
+                    if (col < row) {
+                        PyramidNode* rightParent = prevRowHeads[row - 1];
+                        int count = 0;
+                        while (rightParent && count < col) {
+                            rightParent = rightParent->nextInRow;
+                            count++;
+                        }
+                        if (rightParent) {
+                            rightParent->left = node;
+                        }
+                    }
+                }
+
+                if (row == 6) {
+                    node->blocked = false;
+                }
+            }
+
+            pyramidRows[row] = rowHead;
+            prevRowHeads[row] = rowHead;
+        }
+
+        for (int i = 0; i < data.stockSize; i++) {
+            int cardArrayIndex = data.stockCardIndices[i];
+            stock.pushBack(&allCards[cardArrayIndex]);
+            stockBackup.pushBack(&allCards[cardArrayIndex]);
+        }
+
+        for (int i = 0; i < data.wasteHistorySize; i++) {
+            int cardArrayIndex = data.wasteCardIndices[i];
+            wasteHistory.pushBack(&allCards[cardArrayIndex]);
+        }
+
+        if (data.currentWasteIndex == -1)
+        {
+            currentWasteCard = NULL;
+        }
+        else
+        {
+            currentWasteCard = &allCards[data.currentWasteIndex];
+        }
+
+        updateBlockedStatus();
+
+        cout << "Game loaded successfully!" << endl;
+        return true;
+    }
+
+    bool hasSaveGame() {
+        ifstream file(SAVE_FILE);
+        return file.good();
+    }
+
+    void deleteSaveGame() {
+        if (remove(SAVE_FILE) == 0) {
+            cout << "Save file deleted." << endl;
         }
     }
     };
@@ -1047,7 +1291,7 @@ int main() {
         game.update(GetFrameTime());
         game.render();
     }
-
+    saveGame();
     CloseWindow();
     return 0;
 }
