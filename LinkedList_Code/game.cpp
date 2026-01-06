@@ -340,7 +340,7 @@ public:
         CloseAudioDevice();
         clearPyramid();
     }
-    //---------------------------------
+    //----------------------------------
     void loadAllSounds() {
         
         cardSelectSound = { 0 };
