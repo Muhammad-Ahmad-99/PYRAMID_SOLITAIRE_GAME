@@ -11,7 +11,8 @@ enum GameState {
     MAIN_MENU,
     INSTRUCTIONS,
     PLAYING,
-    GAME_OVER
+    GAME_OVER,
+    HIGH_SCORE
 };
 
 // ============================================
@@ -250,6 +251,12 @@ private:
     PyramidNode* selectedNode1;
     PyramidNode* selectedNode2;
 
+    int highScores[5];
+    int highScoreCount;
+    int currentGameScoreIndex;  
+    bool isNewGame;             
+    bool isPaused;
+
     int score;
     float gameTime;
     bool gameWon;
@@ -259,13 +266,15 @@ private:
     Texture2D background;
     Texture2D cardTextures[4][13];
 
-    GameState state;
+    GameState currentState;
 
     const int CARD_WIDTH = 90;
     const int CARD_HEIGHT = 130;
     const int CARD_SPACING = 20;
 
     Rectangle stockRect;
+
+    const char* SCORE_FILE = "scores.txt";
     const char* SAVE_FILE = "savegame.dat";
 
     //----------------------
@@ -273,7 +282,7 @@ private:
     Sound cardMatchSound;
     Sound cardMismatchSound;
     Sound stockDrawSound;
-    Sound backgroundMusic;
+    Music backgroundMusic;
     float soundVolume;
     bool isMuted;
 
@@ -316,7 +325,7 @@ public:
         gameLost = false;
         cardCount = 0;
         stockPosition = 0;
-        state = MAIN_MENU;
+        currentState = MAIN_MENU;
 
         loadCardTextures();
         stockRect = { 0, 0, 0, 0 };
@@ -326,9 +335,20 @@ public:
         soundVolume = 0.7f;
         isMuted = false;
         loadAllSounds();
+
+        currentGameScoreIndex = -1; 
+        isNewGame = true;
+        isPaused = false;
+        highScoreCount = 0;
+
+        loadHighScores();
     }
 
     ~PyramidSolitaire() {
+        if (currentState == PLAYING && !gameWon && !gameLost && score > 0) {
+            saveCurrentGameScore();
+            saveGame();
+        }
         for (int s = 0; s < 4; s++) {
             for (int v = 0; v < 13; v++) {
                 UnloadTexture(cardTextures[s][v]);
@@ -342,14 +362,14 @@ public:
     }
     //----------------------------------
     void loadAllSounds() {
-        
+
         cardSelectSound = { 0 };
         cardMatchSound = { 0 };
         cardMismatchSound = { 0 };
         stockDrawSound = { 0 };
         backgroundMusic = { 0 };
 
-        
+
         if (FileExists("sounds/card_select.mp3"))
             cardSelectSound = LoadSound("sounds/card_select.mp3");
 
@@ -575,6 +595,7 @@ public:
 
     void removeCards() {
         if (selectedCard1 && isKing(selectedCard1)) {
+            playCardMatchSound();
             selectedCard1->inPlay = false;
 
             if (currentWasteCard == selectedCard1) {
@@ -628,6 +649,7 @@ public:
             checkWinCondition();
         }
         else if (selectedCard1 && selectedCard2) {
+            playCardMismatchSound();
             moves++;
             selectedCard1 = nullptr;
             selectedCard2 = nullptr;
@@ -665,7 +687,7 @@ public:
             stockBackup.pushBack(&allCards[i]);
         }
 
-        state = PLAYING;
+        currentState = PLAYING;
     }
 
     // ============================================
@@ -828,6 +850,11 @@ public:
 
         if (allRemoved) {
             gameWon = true;
+            saveCurrentGameScore();
+            deleteSaveGame();
+           
+            isNewGame = true;
+            currentGameScoreIndex = -1;
         }
     }
 
@@ -880,6 +907,11 @@ public:
         }
 
         gameLost = true;
+        saveCurrentGameScore();
+        deleteSaveGame();
+       
+        isNewGame = true;
+        currentGameScoreIndex = -1;
     }
 
     void handleMouseClick(int mouseX, int mouseY) {
@@ -920,7 +952,7 @@ public:
         //--------------------
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
-        Rectangle muteBtn = {20, 20, 50, 50 };
+        Rectangle muteBtn = { 20, 20, 50, 50 };
         if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, muteBtn)) {
             toggleMute();
             return;
@@ -965,7 +997,7 @@ public:
             const char* values[13] = { "A","2","3","4","5","6","7","8","9","10","J","Q","K" };
             DrawText(values[card->value - 1], rect.x + 10, rect.y + 10, 20, suitColor);
 
-            const char* suitSymbols[4] = { "♥", "♦", "♣", "♠" };
+            const char* suitSymbols[4] = { "?", "?", "?", "?" };
             DrawText(suitSymbols[card->suit], rect.x + 10, rect.y + 35, 25, suitColor);
         }
 
@@ -1085,7 +1117,7 @@ public:
             }
         }
         else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, instructBtn)) {
-            state = INSTRUCTIONS;
+            currentState = INSTRUCTIONS;
         }
         else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, exitBtn)) {
             CloseWindow();
@@ -1099,17 +1131,17 @@ public:
 
         Rectangle backBtn = { (float)(sw / 2 - 100), (float)(sh - 120), 200, 50 };
         if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, backBtn)) {
-            state = MAIN_MENU;
+            currentState = MAIN_MENU;
         }
     }
 
     void render() {
-        if (state == MAIN_MENU) {
+        if (currentState == MAIN_MENU) {
             renderMainMenu();
             return;
         }
 
-        if (state == INSTRUCTIONS) {
+        if (currentState == INSTRUCTIONS) {
             renderInstructions();
             return;
         }
@@ -1125,10 +1157,10 @@ public:
         DrawRectangleRec(muteBtn, isMuted ? RED : GRAY);
         DrawRectangleLinesEx(muteBtn, 2, WHITE);
         if (isMuted) {
-            DrawText("X", 35, 35, 30, WHITE);  
+            DrawText("X", 35, 35, 30, WHITE);
         }
         else {
-            DrawText("♪", 35, 35, 30, WHITE);  
+            DrawText("?", 35, 35, 30, WHITE);
         }
         Vector2 mousePos = GetMousePosition();
         if (CheckCollisionPointRec(mousePos, muteBtn)) {
@@ -1197,13 +1229,145 @@ public:
             DrawText("NO MOVES LEFT!", sw / 2 - 150, sh / 2 - 50, 40, RED);
             DrawText(TextFormat("Score: %d", score), sw / 2 - 80, sh / 2 + 10, 30, WHITE);
         }
+        else if (isPaused) {  
+            DrawRectangle(0, 0, sw, sh, { 0, 0, 0, 150 });
+            DrawText("PAUSED", sw / 2 - 80, sh / 2, 40, YELLOW);
+            DrawText("Press P to Resume", sw / 2 - 120, sh / 2 + 50, 25, WHITE);
+        }
 
         EndDrawing();
     }
 
+    void loadHighScores() {
+        ifstream file(SCORE_FILE);
+        highScoreCount = 0;
+
+        if (!file.is_open())
+            return;
+
+        while (file >> highScores[highScoreCount] && highScoreCount < 5) {
+            highScoreCount++;
+        }
+        file.close();
+
+        // Sort in descending order (YOUR ADDITION: manual sorting without STL)
+        for (int i = 0; i < highScoreCount - 1; i++) {
+            for (int j = i + 1; j < highScoreCount; j++) {
+                if (highScores[j] > highScores[i]) {
+                    swap(highScores[i], highScores[j]);
+                }
+            }
+        }
+    }
+
+    void saveHighScores() {
+        ofstream file(SCORE_FILE, ios::trunc);
+        for (int i = 0; i < highScoreCount; i++) {
+            file << highScores[i] << endl;
+        }
+        file.close();
+    }
+
+    void updateHighScores(int newScore) {
+        // Only add score if it's greater than 0
+        if (newScore <= 0)
+            return;
+
+        // Add new score
+        if (highScoreCount < 5) {
+            highScores[highScoreCount++] = newScore;
+        }
+        else {
+            // Replace the lowest score if new score is higher
+            highScores[4] = newScore;
+        }
+
+        // Sort in descending order (YOUR ADDITION: manual sorting without STL)
+        for (int i = 0; i < highScoreCount - 1; i++) {
+            for (int j = i + 1; j < highScoreCount; j++) {
+                if (highScores[j] > highScores[i]) {
+                    swap(highScores[i], highScores[j]);
+                }
+            }
+        }
+
+        saveHighScores();
+    }
+
+    void saveCurrentGameScore() {
+        // If this is a new game, add a new score entry
+        if (isNewGame) {
+            if (highScoreCount < 5) {
+                currentGameScoreIndex = highScoreCount;
+                highScores[highScoreCount++] = score;
+            }
+            else {
+                // Find if current score is better than lowest score
+                if (score > highScores[4]) {
+                    currentGameScoreIndex = 4;
+                    highScores[4] = score;
+                }
+                else {
+                    currentGameScoreIndex = -1; // Score not high enough
+                }
+            }
+            isNewGame = false;
+        }
+        else if (currentGameScoreIndex >= 0) {
+            // Update existing score entry for this game
+            highScores[currentGameScoreIndex] = score;
+        }
+        else if (score > 0 && highScoreCount < 5) {
+            // If no index yet but there's room, add it
+            currentGameScoreIndex = highScoreCount;
+            highScores[highScoreCount++] = score;
+            isNewGame = false;
+        }
+        else if (score > 0 && highScoreCount == 5 && score > highScores[4]) {
+            // If list is full but score is better than lowest
+            currentGameScoreIndex = 4;
+            highScores[4] = score;
+            isNewGame = false;
+        }
+
+        // Sort in descending order (YOUR ADDITION: manual sorting without STL)
+        for (int i = 0; i < highScoreCount - 1; i++) {
+            for (int j = i + 1; j < highScoreCount; j++) {
+                if (highScores[j] > highScores[i]) {
+                    swap(highScores[i], highScores[j]);
+                }
+            }
+        }
+
+        // Update the index after sorting
+        if (currentGameScoreIndex >= 0 && !isNewGame) {
+            for (int i = 0; i < highScoreCount; i++) {
+                if (highScores[i] == score) {
+                    currentGameScoreIndex = i;
+                    break;
+                }
+            }
+        }
+
+        saveHighScores();
+    }
+
+
     void update(float deltaTime) {
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+            if (currentState == PLAYING && !gameWon && !gameLost) {
+                // Save current score to high scores before leaving
+                if (score > 0) {
+                    saveCurrentGameScore();
+                }
+                saveGame();  // Save game state
+            }
+            currentState = MAIN_MENU;
+            isPaused = false;
+            return;
+        }
         updateBackgroundMusic();
-        if (state == MAIN_MENU) {
+        if (currentState == MAIN_MENU) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 Vector2 mousePos = GetMousePosition();
                 handleMainMenuClick((int)mousePos.x, (int)mousePos.y);
@@ -1211,13 +1375,52 @@ public:
             return;
         }
 
-        if (state == INSTRUCTIONS) {
+        if (currentState == INSTRUCTIONS) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 Vector2 mousePos = GetMousePosition();
                 handleInstructionsClick((int)mousePos.x, (int)mousePos.y);
             }
             return;
         }
+
+        if (IsKeyPressed(KEY_P) && !gameWon && !gameLost) {
+            isPaused = !isPaused;
+        }
+
+        // Don't update game if paused - YOUR ADDITION
+        if (isPaused) {
+            // Still allow restart button and backspace
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                int sw = GetScreenWidth();
+                int sh = GetScreenHeight();
+                Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
+                if (CheckCollisionPointRec(mousePos, restartBtn)) {
+                    // Save current score before restart
+                    if (score > 0) {
+                        saveCurrentGameScore();
+                    }
+                    initGame();  // Start new game
+                    return;
+                }
+            }
+            return;
+        }
+
+        // Update game time only if not paused and game is active
+        if (!gameWon && !gameLost) {
+            gameTime += deltaTime;
+
+            // Check lose condition periodically
+            static float checkTimer = 0.0f;
+            checkTimer += deltaTime;
+            if (checkTimer >= 1.0f) {
+                checkLoseCondition();
+                checkTimer = 0.0f;
+            }
+        }
+
+        
         //---------------------
         if (IsKeyPressed(KEY_M)) {
             toggleMute();
@@ -1464,6 +1667,45 @@ public:
             cout << "Save file deleted." << endl;
         }
     }
+
+    void renderHighScores() {
+        BeginDrawing();
+        drawBackground();
+
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        // Semi-transparent overlay
+        DrawRectangle(0, 0, sw, sh, { 0, 0, 0, 150 });
+
+        DrawText("TOP 5 HIGH SCORES", sw / 2 - 180, 100, 40, GOLD);
+
+        for (int i = 0; i < highScoreCount; i++) {
+            DrawText(TextFormat("%d. %d", i + 1, highScores[i]), sw / 2 - 50, 200 + i * 60, 35, WHITE);
+        }
+
+        if (highScoreCount == 0) {
+            DrawText("No scores yet!", sw / 2 - 80, 200, 30, WHITE);
+        }
+
+        Rectangle backBtn = { (float)(sw / 2 - 100), sh - 120, 200, 50 };
+        DrawRectangleRec(backBtn, DARKGRAY);
+        DrawRectangleLinesEx(backBtn, 2, WHITE);
+        DrawText("BACK TO MENU", sw / 2 - 85, sh - 105, 20, WHITE);
+
+        EndDrawing();
+    }
+
+    // YOUR ADDITION: Handle high scores screen clicks
+    void handleHighScoresClick(int mouseX, int mouseY) {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        Rectangle backBtn = { (float)(sw / 2 - 100), sh - 120, 200, 50 };
+        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, backBtn)) {
+            currentState = MAIN_MENU;
+        }
+    }
 };
 int main() {
     const int screenWidth = 1200;
@@ -1477,7 +1719,7 @@ int main() {
         game.update(GetFrameTime());
         game.render();
     }
-    saveGame();
+    game.saveGame();
     CloseWindow();
     return 0;
 }
