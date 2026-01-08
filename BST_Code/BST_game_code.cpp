@@ -112,7 +112,7 @@ public:
         UnloadTexture(background);
         UnloadTexture(stockTexture);
     }
-
+    
     void loadCardTextures() {
         const char* suits[4] = { "H", "D", "C", "S" };
         const char* values[13] = { "A","2","3","4","5","6","7","8","9","10","J","Q","K" };
@@ -425,7 +425,7 @@ public:
 
         EndDrawing();
     }
-    
+
     void render() {
         if (currentState == MAIN_MENU) {
             renderMainMenu();
