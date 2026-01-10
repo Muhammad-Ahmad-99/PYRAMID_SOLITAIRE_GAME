@@ -1,6 +1,8 @@
+#include "raylib.h"
 #include <iostream>
 #include <ctime>
 #include <cstdlib>
+#include <string>
 
 using namespace std;
 
@@ -33,7 +35,6 @@ public:
     }
 };
 
-// Stack Node class
 template <class T>
 class StackNode {
 public:
@@ -158,6 +159,15 @@ private:
     Card allCards[52];
     int cardCount;
 
+    // ALI'S PART: GUI Components
+    Texture2D stockTexture;
+    Texture2D background;
+    Texture2D cardTextures[4][13];
+    Rectangle stockRect;
+    const int CARD_WIDTH = 90;
+    const int CARD_HEIGHT = 130;
+    const int CARD_SPACING = 20;
+
 public:
     PyramidSolitaire() {
         for (int i = 0; i < 7; i++) {
@@ -177,10 +187,39 @@ public:
         cardCount = 0;
         currentState = MAIN_MENU;
         isPaused = false;
+
+        loadCardTextures(); // ALI'S PART
+        stockRect = { 0, 0, 0, 0 };
     }
 
     ~PyramidSolitaire() {
         clearPyramid();
+        // ALI'S PART: Cleanup textures
+        for (int s = 0; s < 4; s++) {
+            for (int v = 0; v < 13; v++) {
+                UnloadTexture(cardTextures[s][v]);
+            }
+        }
+        UnloadTexture(background);
+        UnloadTexture(stockTexture);
+    }
+
+    // ALI'S PART: Load textures
+    void loadCardTextures() {
+        const char* suits[4] = { "H", "D", "C", "S" };
+        const char* values[13] = { "A","2","3","4","5","6","7","8","9","10","J","Q","K" };
+
+        for (int s = 0; s < 4; s++) {
+            for (int v = 0; v < 13; v++) {
+                string path = "images/";
+                path += values[v];
+                path += suits[s];
+                path += ".JPG";
+                cardTextures[s][v] = LoadTexture(path.c_str());
+            }
+        }
+        stockTexture = LoadTexture("images/stock.jpg");
+        background = LoadTexture("images/background.jpg");
     }
 
     void clearPyramid() {
@@ -224,7 +263,6 @@ public:
         }
 
         currentState = PLAYING;
-        cout << "Game initialized with Stack-based structures!\n";
     }
 
     void createDeck() {
@@ -240,7 +278,6 @@ public:
 
     void shuffleDeck() {
         srand(time(nullptr));
-
         Card tempDeck[52];
         int index = 0;
 
@@ -253,18 +290,15 @@ public:
             tempDeck[index++] = tempStack.pop();
         }
 
-        // Shuffle array
         for (int i = 51; i > 0; i--) {
             int j = rand() % (i + 1);
             swap(tempDeck[i], tempDeck[j]);
         }
 
-        // Update allCards
         for (int i = 0; i < 52; i++) {
             allCards[i] = tempDeck[i];
         }
 
-        // Push back to deck stack
         deck.clear();
         for (int i = 0; i < 52; i++) {
             deck.push(allCards[i]);
@@ -367,9 +401,7 @@ public:
         moves++;
 
         if (stock.isEmpty()) {
-            // Rebuild stock from backup using Stack
             Stack<Card*> tempStack;
-
             StackNode<Card*>* backupNode = stockBackup.getTop();
             while (backupNode) {
                 if (backupNode->data->inPlay) {
@@ -382,20 +414,18 @@ public:
             while (!tempStack.isEmpty()) {
                 stock.push(tempStack.pop());
             }
-
-            cout << "Stock reset from backup!\n";
         }
 
-        Card* card = stock.pop(); // LIFO operation
-        card->faceUp = true;
-        currentWasteCard = card;
-        wasteHistory.push(card);  // LIFO operation
-        cout << "Drew card: " << card->value << "\n";
+        if (!stock.isEmpty()) {
+            Card* card = stock.pop();
+            card->faceUp = true;
+            currentWasteCard = card;
+            wasteHistory.push(card);
+        }
     }
 
     void removeCards() {
         if (selectedCard1 && isKing(selectedCard1)) {
-            cout << "King removed! +10 points\n";
             selectedCard1->inPlay = false;
 
             if (currentWasteCard == selectedCard1) {
@@ -418,7 +448,6 @@ public:
         }
 
         if (selectedCard1 && selectedCard2 && isValidMove(selectedCard1, selectedCard2)) {
-            cout << "Valid pair removed! +20 points\n";
             selectedCard1->inPlay = false;
             selectedCard2->inPlay = false;
 
@@ -434,7 +463,6 @@ public:
             checkWinCondition();
         }
         else if (selectedCard1 && selectedCard2) {
-            cout << "Invalid pair!\n";
             moves++;
             selectedCard1 = nullptr;
             selectedCard2 = nullptr;
@@ -448,7 +476,6 @@ public:
             return;
 
         if (node && !isCardFree(node)) {
-            cout << "Card is blocked!\n";
             return;
         }
 
@@ -464,17 +491,14 @@ public:
         if (!selectedCard1) {
             selectedCard1 = card;
             selectedNode1 = node;
-            cout << "First card selected: " << card->value << "\n";
         }
         else if (selectedCard1 == card) {
             selectedCard1 = nullptr;
             selectedNode1 = nullptr;
-            cout << "Card deselected\n";
         }
         else {
             selectedCard2 = card;
             selectedNode2 = node;
-            cout << "Second card selected: " << card->value << "\n";
             removeCards();
         }
     }
@@ -500,7 +524,6 @@ public:
     }
 
     void checkLoseCondition() {
-        // Using Stack to collect free cards
         Stack<Card*> freeCards;
 
         for (int row = 0; row < 7; row++) {
@@ -517,7 +540,6 @@ public:
             freeCards.push(currentWasteCard);
         }
 
-        // Check for Kings
         StackNode<Card*>* checkNode = freeCards.getTop();
         while (checkNode) {
             if (isKing(checkNode->data))
@@ -525,7 +547,6 @@ public:
             checkNode = checkNode->next;
         }
 
-        // Check for valid pairs
         StackNode<Card*>* node1 = freeCards.getTop();
         while (node1) {
             StackNode<Card*>* node2 = node1->next;
@@ -551,188 +572,264 @@ public:
         gameLost = true;
     }
 
-    void update(float deltaTime) {
-        if (currentState == PLAYING && !isPaused && !gameWon && !gameLost) {
-            gameTime += deltaTime;
-            checkLoseCondition();
+    // ALI'S PART: Get card position
+    Rectangle getPyramidCardRect(int row, int col) {
+        int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
+        int x = startX + col * (CARD_WIDTH + CARD_SPACING);
+        int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
+        return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
+    }
+
+    // ALI'S PART: Draw card
+    void drawCard(Card* card, Rectangle rect, bool selected) {
+        if (!card) return;
+
+        Texture2D tex = cardTextures[card->suit][card->value - 1];
+        if (tex.id != 0) {
+            DrawTexturePro(tex, { 0, 0, (float)tex.width, (float)tex.height }, rect, { 0, 0 }, 0, WHITE);
+        }
+        else {
+            DrawRectangleRec(rect, WHITE);
+            DrawRectangleLinesEx(rect, 2, BLACK);
+        }
+
+        if (selected) DrawRectangleLinesEx(rect, 3, YELLOW);
+    }
+
+    // ALI'S PART: Draw background
+    void drawBackground() {
+        if (background.id != 0) {
+            DrawTexturePro(background, { 0, 0, (float)background.width, (float)background.height },
+                { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() }, { 0, 0 }, 0, WHITE);
+        }
+        else {
+            ClearBackground(DARKGREEN);
         }
     }
 
-    void displayMainMenu() {
-        cout << "\n   PYRAMID SOLITAIRE (STACK)    \n";
-        cout << "1. NEW GAME\n";
-        cout << "2. INSTRUCTIONS\n";
-        cout << "3. EXIT\n";
-        cout << "Choice: ";
+    // ALI'S PART: Render main menu
+    void renderMainMenu() {
+        BeginDrawing();
+        drawBackground();
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        DrawText("PYRAMID SOLITAIRE", sw / 2 - 250, sh / 2 - 300, 50, GOLD);
+
+        Rectangle playBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 180), 300, 60 };
+        Rectangle instructBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 90), 300, 60 };
+        Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2), 300, 60 };
+
+        DrawRectangleRec(playBtn, DARKGREEN);
+        DrawRectangleLinesEx(playBtn, 3, GREEN);
+        DrawText("NEW GAME", sw / 2 - 110, sh / 2 - 160, 25, WHITE);
+
+        DrawRectangleRec(instructBtn, DARKBLUE);
+        DrawRectangleLinesEx(instructBtn, 3, BLUE);
+        DrawText("INSTRUCTIONS", sw / 2 - 110, sh / 2 - 70, 25, WHITE);
+
+        DrawRectangleRec(exitBtn, DARKGRAY);
+        DrawRectangleLinesEx(exitBtn, 3, BLACK);
+        DrawText("EXIT GAME", sw / 2 - 80, sh / 2 + 20, 25, WHITE);
+
+        EndDrawing();
     }
 
-    void displayInstructions() {
-        cout << "\n═══ HOW TO PLAY ═══\n";
-        cout << "• Pair cards that sum to 13\n";
-        cout << "• Kings (13) removed alone\n";
-        cout << "• King: +10 pts | Pair: +20 pts\n";
-        cout << "\nStack-based structures:\n";
-        cout << "• Deck (Stack)\n";
-        cout << "• Stock (Stack - LIFO)\n";
-        cout << "• Waste History (Stack - LIFO)\n";
-        cout << "\nPress Enter...";
-        cin.ignore();
-        cin.get();
+    // ALI'S PART: Render instructions
+    void renderInstructions() {
+        BeginDrawing();
+        drawBackground();
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        DrawText("HOW TO PLAY", sw / 2 - 150, 150, 40, GOLD);
+        DrawText("Pair cards that sum to 13", sw / 2 - 200, 250, 25, WHITE);
+        DrawText("Kings removed alone", sw / 2 - 150, 300, 25, WHITE);
+
+        Rectangle backBtn = { (float)(sw / 2 - 100), (float)(sh - 120), 200, 50 };
+        DrawRectangleRec(backBtn, DARKGRAY);
+        DrawText("BACK", sw / 2 - 40, sh - 105, 20, WHITE);
+
+        EndDrawing();
     }
 
-    void printPyramid() {
-        cout << "\nPYRAMID:\n\n";
+    // ALI'S PART: Main render
+    void render() {
+        if (currentState == MAIN_MENU) { renderMainMenu(); return; }
+        if (currentState == INSTRUCTIONS) { renderInstructions(); return; }
+
+        BeginDrawing();
+        drawBackground();
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        DrawText(TextFormat("Score: %d", score), 20, 20, 25, GOLD);
+        DrawText(TextFormat("Moves: %d", moves), sw - 150, 20, 25, YELLOW);
+
         for (int row = 0; row < 7; row++) {
-            for (int s = 0; s < 6 - row; s++)
-                cout << "   ";
-
             PyramidNode* current = pyramidRows[row];
             while (current) {
-                if (!current->card->inPlay) {
-                    cout << " XX ";
-                }
-                else if (current == selectedNode1 || current == selectedNode2) {
-                    cout << "[";
-                    if (current->card->value == 13) cout << "K";
-                    else cout << current->card->value;
-                    cout << "]";
-                }
-                else {
-                    if (current->card->value == 13) cout << " K ";
-                    else if (current->card->value < 10) cout << " " << current->card->value << " ";
-                    else cout << current->card->value << " ";
+                if (current->card && current->card->inPlay) {
+                    Rectangle rect = getPyramidCardRect(current->row, current->col);
+                    bool selected = (current == selectedNode1 || current == selectedNode2);
+                    drawCard(current->card, rect, selected);
+                    if (current->blocked) DrawRectangle(rect.x, rect.y, rect.width, 5, RED);
                 }
                 current = current->nextInRow;
             }
-            cout << "\n\n";
         }
-    }
 
-    void printStockAndWaste() {
-        cout << "STOCK: ";
-        if (!stock.isEmpty())
-            cout << stock.getSize() << " cards";
-        else
-            cout << "empty";
+        int uiStartY = 150 + 7 * (CARD_HEIGHT / 2 + CARD_SPACING);
 
-        cout << " | WASTE: ";
+        DrawText("WASTE", 50, uiStartY - 30, 20, WHITE);
         if (currentWasteCard && currentWasteCard->inPlay) {
-            if (currentWasteCard->value == 13)
-                cout << "K";
-            else
-                cout << currentWasteCard->value;
-
-            if (currentWasteCard == selectedCard1 || currentWasteCard == selectedCard2)
-                cout << " [SELECTED]";
+            Rectangle wasteRect = { 50, (float)uiStartY, CARD_WIDTH, CARD_HEIGHT };
+            bool selected = (currentWasteCard == selectedCard1 || currentWasteCard == selectedCard2);
+            drawCard(currentWasteCard, wasteRect, selected);
         }
-        else
-            cout << "empty";
-        cout << "\n";
+
+        stockRect = { 180.0f, (float)uiStartY, (float)CARD_WIDTH, (float)CARD_HEIGHT };
+        DrawText("STOCK", 180, uiStartY - 30, 20, WHITE);
+        if (stockTexture.id != 0 && !stock.isEmpty()) {
+            DrawTexturePro(stockTexture, { 0, 0, (float)stockTexture.width, (float)stockTexture.height },
+                stockRect, { 0, 0 }, 0, WHITE);
+        }
+
+        DrawText(TextFormat("Time: %02d:%02d:%02d", (int)gameTime / 3600, ((int)gameTime % 3600) / 60, (int)gameTime % 60),
+            sw / 2 - 80, sh - 30, 25, WHITE);
+
+        Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
+        DrawRectangleRec(restartBtn, MAROON);
+        DrawText("RESTART", sw - 140, sh - 45, 20, WHITE);
+
+        if (gameWon) {
+            DrawRectangle(0, 0, sw, sh, { 0, 0, 0, 150 });
+            DrawText("YOU WIN!", sw / 2 - 100, sh / 2, 40, GOLD);
+        }
+        else if (gameLost) {
+            DrawRectangle(0, 0, sw, sh, { 0, 0, 0, 150 });
+            DrawText("NO MOVES LEFT!", sw / 2 - 150, sh / 2, 40, RED);
+        }
+
+        if (isPaused) {
+            DrawRectangle(0, 0, sw, sh, { 0, 0, 0, 150 });
+            DrawText("PAUSED", sw / 2 - 80, sh / 2, 40, YELLOW);
+        }
+
+        EndDrawing();
     }
 
-    void printGameStatus() {
-        cout << "Score: " << score << " | Moves: " << moves
-            << " | Time: " << (int)gameTime << "s\n";
-        cout << "Stack Info: Deck=" << deck.getSize()
-            << " Stock=" << stock.getSize()
-            << " Waste=" << wasteHistory.getSize() << "\n";
+    // ALI'S PART: Handle clicks
+    void handleMouseClick(int mouseX, int mouseY) {
+        if (gameWon || gameLost) { currentState = MAIN_MENU; return; }
+
+        for (int row = 0; row < 7; row++) {
+            PyramidNode* current = pyramidRows[row];
+            while (current) {
+                if (current->card && current->card->inPlay) {
+                    Rectangle cardRect = getPyramidCardRect(current->row, current->col);
+                    if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, cardRect)) {
+                        selectCard(current->card, current);
+                        return;
+                    }
+                }
+                current = current->nextInRow;
+            }
+        }
+
+        if (currentWasteCard && currentWasteCard->inPlay) {
+            int uiStartY = 150 + 7 * (CARD_HEIGHT / 2 + CARD_SPACING);
+            Rectangle wasteRect = { 50, (float)uiStartY, CARD_WIDTH, CARD_HEIGHT };
+            if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, wasteRect)) {
+                selectCard(currentWasteCard, nullptr);
+                return;
+            }
+        }
+
+        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, stockRect)) {
+            drawCardFromStock();
+        }
     }
 
-    void run() {
-        char choice;
+    void handleMainMenuClick(int mouseX, int mouseY) {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
 
-        while (true) {
+        Rectangle playBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 180), 300, 60 };
+        Rectangle instructBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 90), 300, 60 };
+        Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2), 300, 60 };
+
+        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, playBtn)) {
+            initGame();
+        }
+        else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, instructBtn)) {
+            currentState = INSTRUCTIONS;
+        }
+        else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, exitBtn)) {
+            CloseWindow();
+            exit(0);
+        }
+    }
+
+    void handleInstructionsClick(int mouseX, int mouseY) {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        Rectangle backBtn = { (float)(sw / 2 - 100), (float)(sh - 120), 200, 50 };
+        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, backBtn)) {
+            currentState = MAIN_MENU;
+        }
+    }
+
+    void update(float deltaTime) {
+        if (IsKeyPressed(KEY_P) && !gameWon && !gameLost) {
+            isPaused = !isPaused;
+        }
+
+        if (isPaused) return;
+
+        if (currentState == PLAYING && !gameWon && !gameLost) {
+            gameTime += deltaTime;
+            checkLoseCondition();
+        }
+
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            Vector2 mousePos = GetMousePosition();
+
             if (currentState == MAIN_MENU) {
-                system("cls");
-                displayMainMenu();
-                cin >> choice;
-                cin.ignore();
-
-                if (choice == '1') {
-                    initGame();
-                }
-                else if (choice == '2') {
-                    displayInstructions();
-                }
-                else if (choice == '3') {
-                    cout << "Thanks for playing!\n";
-                    break;
-                }
+                handleMainMenuClick((int)mousePos.x, (int)mousePos.y);
+            }
+            else if (currentState == INSTRUCTIONS) {
+                handleInstructionsClick((int)mousePos.x, (int)mousePos.y);
             }
             else if (currentState == PLAYING) {
-                if (gameWon || gameLost) {
-                    system("cls");
-                    printGameStatus();
-                    if (gameWon)
-                        cout << "\n★★★ YOU WIN! ★★★\n";
-                    else if (gameLost)
-                        cout << "\n✖ NO MOVES LEFT! ✖\n";
-
-                    cout << "\nPress Enter to return to menu...";
-                    cin.get();
-                    currentState = MAIN_MENU;
-                    continue;
+                int sw = GetScreenWidth();
+                int sh = GetScreenHeight();
+                Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
+                if (CheckCollisionPointRec(mousePos, restartBtn)) {
+                    initGame();
+                    return;
                 }
-
-                update(1.0f);
-                system("cls");
-
-                printGameStatus();
-                printPyramid();
-                printStockAndWaste();
-
-                cout << "\nActions:\n";
-                cout << "1. Draw from stock (Stack pop)\n";
-                cout << "2. Select pyramid card (row col)\n";
-                cout << "3. Select waste card\n";
-                cout << "4. Back to menu\n";
-                cout << "Choice: ";
-                cin >> choice;
-
-                if (choice == '1') {
-                    drawCardFromStock();
-                    cin.ignore();
-                    cin.get();
-                }
-                else if (choice == '2') {
-                    int r, c;
-                    cout << "Enter row (0-6) and column: ";
-                    cin >> r >> c;
-                    if (r >= 0 && r <= 6 && c >= 0 && c <= r) {
-                        PyramidNode* node = pyramidRows[r];
-                        for (int i = 0; i < c && node; i++) {
-                            node = node->nextInRow;
-                        }
-                        if (node) {
-                            selectCard(node->card, node);
-                        }
-                    }
-                    cin.ignore();
-                    cin.get();
-                }
-                else if (choice == '3') {
-                    if (currentWasteCard) {
-                        selectCard(currentWasteCard, nullptr);
-                    }
-                    cin.ignore();
-                    cin.get();
-                }
-                else if (choice == '4') {
-                    currentState = MAIN_MENU;
-                }
+                handleMouseClick((int)mousePos.x, (int)mousePos.y);
             }
         }
     }
 };
 
 int main() {
+    const int screenWidth = 1400;
+    const int screenHeight = 950;
 
-    cout << "\n Pyramid Solitaire \n";
-    cout << "\nPress Enter to start...";
-    cin.get();
+    InitWindow(screenWidth, screenHeight, "Pyramid Solitaire - Stack Version");
+    SetTargetFPS(60);
 
     PyramidSolitaire game;
-    game.run();
 
+    while (!WindowShouldClose()) {
+        game.update(GetFrameTime());
+        game.render();
+    }
+
+    CloseWindow();
     return 0;
 }
