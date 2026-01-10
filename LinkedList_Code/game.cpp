@@ -883,18 +883,22 @@ public:
             if (currentWasteCard == selectedCard1)
             {
                 wasteHistory.remove(currentWasteCard);
-                if (wasteHistory.isEmpty())
+
+                // Find last valid card in wasteHistory
+                currentWasteCard = NULL;
+                ListNode<Card *> *node = wasteHistory.getHead();
+                while (node)
                 {
-                    currentWasteCard = NULL;
-                }
-                else
-                {
-                    currentWasteCard = wasteHistory.back();
+                    if (node->data && node->data->inPlay)
+                    {
+                        currentWasteCard = node->data;
+                    }
+                    node = node->next;
                 }
             }
 
             score += 10;
-            moves++; // Count valid move
+            moves++;
             selectedCard1 = nullptr;
             selectedNode1 = nullptr;
             updateBlockedStatus();
@@ -908,25 +912,35 @@ public:
             selectedCard1->inPlay = false;
             selectedCard2->inPlay = false;
 
-            if (currentWasteCard == selectedCard1 || currentWasteCard == selectedCard2)
-            {
-                if (currentWasteCard == selectedCard1)
-                {
-                    wasteHistory.remove(selectedCard1);
-                }
-                if (currentWasteCard == selectedCard2)
-                {
-                    wasteHistory.remove(selectedCard2);
-                }
+            bool card1IsWaste = (currentWasteCard == selectedCard1);
+            bool card2IsWaste = (currentWasteCard == selectedCard2);
 
-                if (wasteHistory.isEmpty())
-                    currentWasteCard = NULL;
-                else
-                    currentWasteCard = wasteHistory.back();
+            if (card1IsWaste)
+            {
+                wasteHistory.remove(selectedCard1);
+            }
+            if (card2IsWaste)
+            {
+                wasteHistory.remove(selectedCard2);
+            }
+
+            if (card1IsWaste || card2IsWaste)
+            {
+                // Find last valid card in wasteHistory
+                currentWasteCard = NULL;
+                ListNode<Card *> *node = wasteHistory.getHead();
+                while (node)
+                {
+                    if (node->data && node->data->inPlay)
+                    {
+                        currentWasteCard = node->data;
+                    }
+                    node = node->next;
+                }
             }
 
             score += 20;
-            moves++; // Count valid move
+            moves++;
 
             selectedCard1 = nullptr;
             selectedCard2 = nullptr;
@@ -939,7 +953,7 @@ public:
         else if (selectedCard1 && selectedCard2)
         {
             playCardMismatchSound();
-            moves++; // Count invalid move
+            moves++;
             selectedCard1 = nullptr;
             selectedCard2 = nullptr;
             selectedNode1 = nullptr;
@@ -1020,6 +1034,7 @@ public:
     {
         LinkedList<Card *> freeCards;
 
+        // Collect all free pyramid cards
         for (int row = 0; row < 7; row++)
         {
             PyramidNode *current = pyramidRows[row];
@@ -1033,20 +1048,63 @@ public:
             }
         }
 
+        // Add current waste card if it exists
         if (currentWasteCard && currentWasteCard->inPlay)
         {
             freeCards.pushBack(currentWasteCard);
         }
 
+        // Add remaining stock cards (not yet drawn)
+        ListNode<Card *> *stockNode = stock.getHead();
+        while (stockNode)
+        {
+            if (stockNode->data->inPlay)
+            {
+                freeCards.pushBack(stockNode->data);
+            }
+            stockNode = stockNode->next;
+        }
+
+        // If stock is empty, check if any cards can be recycled from backup
+        if (stock.isEmpty())
+        {
+            ListNode<Card *> *backupNode = stockBackup.getHead();
+            while (backupNode)
+            {
+                if (backupNode->data->inPlay)
+                {
+                    // Check if this card is NOT already in freeCards (not in wasteHistory)
+                    bool alreadyAdded = false;
+                    ListNode<Card *> *checkNode = freeCards.getHead();
+                    while (checkNode)
+                    {
+                        if (checkNode->data == backupNode->data)
+                        {
+                            alreadyAdded = true;
+                            break;
+                        }
+                        checkNode = checkNode->next;
+                    }
+
+                    if (!alreadyAdded)
+                    {
+                        freeCards.pushBack(backupNode->data);
+                    }
+                }
+                backupNode = backupNode->next;
+            }
+        }
+
+        // Check if any card is a King (can be removed alone)
         ListNode<Card *> *checkNode = freeCards.getHead();
         while (checkNode)
         {
             if (isKing(checkNode->data))
-                return;
-
+                return; // Valid move exists
             checkNode = checkNode->next;
         }
 
+        // Check if any two cards sum to 13
         ListNode<Card *> *node1 = freeCards.getHead();
         while (node1)
         {
@@ -1055,30 +1113,17 @@ public:
             {
                 if (isValidMove(node1->data, node2->data))
                 {
-                    return;
+                    return; // Valid move exists
                 }
                 node2 = node2->next;
             }
             node1 = node1->next;
         }
 
-        if (!stock.isEmpty())
-            return;
-
-        ListNode<Card *> *backupCheckNode = stockBackup.getHead();
-        while (backupCheckNode)
-        {
-            if (backupCheckNode->data->inPlay)
-                return;
-
-            backupCheckNode = backupCheckNode->next;
-        }
-
+        // If we reach here, no valid moves exist
         gameLost = true;
-        // Save final score when game is lost
         saveCurrentGameScore();
         deleteSaveGame();
-        // Reset for next game
         isNewGame = true;
         currentGameScoreIndex = -1;
     }
