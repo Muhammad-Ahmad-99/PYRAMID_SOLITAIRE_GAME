@@ -211,11 +211,14 @@ struct PyramidCard {
     int row;
     int col;
     bool blocked;
-
+    int leftChildPos;
+    int rightChildPos;
     PyramidCard() {
         card = nullptr;
         row = 0;
         col = 0;
+        leftChildPos = -1;
+        rightChildPos = -1;
         blocked = true;
     }
 
@@ -224,6 +227,10 @@ struct PyramidCard {
         row = r;
         col = cl;
         blocked = true;
+        leftChildPos = (r + 1) * 100 + cl;
+        rightChildPos = (r + 1) * 100 + (cl + 1);
+        if (r == 6)
+            blocked = false;
     }
 
     bool operator<(const PyramidCard& other) const {
@@ -258,6 +265,7 @@ public:
     float gameTime;
     bool gameWon;
     bool gameLost;
+    bool savedGameExists;
     GameState currentState;
     bool isPaused;
     Texture2D stockTexture;
@@ -281,9 +289,15 @@ public:
         isPaused = false;
         loadCardTextures();
         stockRect = { 0, 0, 0, 0 };
+        savedGameExists = false;
+        checkSavedGame();
     }
 
     ~PyramidSolitaire() {
+        if(currentState == Playing && !gameWon && !gameLost && score > 0)
+        {
+            saveCurrentGameScore();
+        }
         pyramidBST.clear();
         for (int s = 0; s < 4; s++) {
             for (int v = 0; v < 13; v++) {
@@ -293,6 +307,136 @@ public:
         UnloadTexture(background);
         UnloadTexture(stockTexture);
     }
+    void checkSavedGame(){
+        ifstream file(SAVE_FILE, ios::binary);
+         if (file.is_open()) {
+             savedGameExists = true;
+             file.close();
+         }
+        else{
+            savedGameExists = false;
+        }
+    }
+    void saveGame() {
+        ofstream file(SAVE_FILE, ios::binary | ios::trunc);
+        if (!file.is_open()) {
+            cout << "Error: Could not save game!" << endl;
+            return;
+        }
+        file.write((char*)&score, sizeof(score));
+        file.write((char*)&moves, sizeof(moves));
+        file.write((char*)&gameTime, sizeof(gameTime));
+        file.write((char*)&stockTop, sizeof(stockTop));
+        file.write((char*)&wasteTop, sizeof(wasteTop));
+        for (int i = 0; i < 52; i++) {
+            file.write((char*)&allCards[i].value, sizeof(allCards[i].value));
+            file.write((char*)&allCards[i].suit, sizeof(allCards[i].suit));
+            file.write((char*)&allCards[i].faceUp, sizeof(allCards[i].faceUp));
+            file.write((char*)&allCards[i].inPlay, sizeof(allCards[i].inPlay));
+            file.write((char*)&allCards[i].position, sizeof(allCards[i].position));
+        }
+        for (int i = 0; i < 28; i++) {
+            file.write((char*)&allPyramidCards[i].blocked, sizeof(allPyramidCards[i].blocked));
+        }
+        for (int i = 0; i <= stockTop; i++) {
+            int pos = stockArray[i]->position;
+            file.write((char*)&pos, sizeof(pos));
+        }
+        for (int i = 0; i <= wasteTop; i++) {
+            int pos = wasteArray[i]->position;
+            file.write((char*)&pos, sizeof(pos));
+        }
+        int wastePos = (currentWasteCard != NULL) ? currentWasteCard->position : -1;
+        file.write((char*)&wastePos, sizeof(wastePos));
+
+        file.close();
+        
+        savedGameExists = true;
+        showSaveMessage = true;
+        saveMessageTimer = 2.0f;
+        cout << "Game saved successfully to " << SAVE_FILE << endl;
+    }
+bool loadGame() {
+        ifstream file(SAVE_FILE, ios::binary);
+        if (!file.is_open()) {
+            cout << "Error: Could not load game from " << SAVE_FILE << endl;
+            return false;
+        }
+
+        pyramidBST.clear();
+        stockTop = -1;
+        wasteTop = -1;
+
+        file.read((char*)&score, sizeof(score));
+        file.read((char*)&moves, sizeof(moves));
+        file.read((char*)&gameTime, sizeof(gameTime));
+        file.read((char*)&stockTop, sizeof(stockTop));
+        file.read((char*)&wasteTop, sizeof(wasteTop));
+
+        for (int i = 0; i < 52; i++) {
+            file.read((char*)&allCards[i].value, sizeof(allCards[i].value));
+            file.read((char*)&allCards[i].suit, sizeof(allCards[i].suit));
+            file.read((char*)&allCards[i].faceUp, sizeof(allCards[i].faceUp));
+            file.read((char*)&allCards[i].inPlay, sizeof(allCards[i].inPlay));
+            file.read((char*)&allCards[i].position, sizeof(allCards[i].position));
+        }
+
+        for (int i = 0; i < 28; i++) {
+            file.read((char*)&allPyramidCards[i].blocked, sizeof(allPyramidCards[i].blocked));
+        }
+
+        int cardIdx = 0;
+        for (int row = 0; row < 7; row++) {
+            for (int col = 0; col <= row; col++) {
+
+                allPyramidCards[cardIdx].card = &allCards[cardIdx];
+                allPyramidCards[cardIdx].row = row;
+                allPyramidCards[cardIdx].col = col;
+                allPyramidCards[cardIdx].leftChildPos = (row + 1) * 100 + col;
+                allPyramidCards[cardIdx].rightChildPos = (row + 1) * 100 + (col + 1);
+         
+                pyramidBST.insert(allPyramidCards[cardIdx]);
+                cardIdx++;
+            }
+        }
+
+        for (int i = 0; i <= stockTop; i++) {
+            int pos;
+            file.read((char*)&pos, sizeof(pos));
+            stockArray[i] = &allCards[pos];
+        }
+
+        for (int i = 0; i <= wasteTop; i++) {
+            int pos;
+            file.read((char*)&pos, sizeof(pos));
+            wasteArray[i] = &allCards[pos];
+        }
+
+        int wastePos;
+        file.read((char*)&wastePos, sizeof(wastePos));
+        currentWasteCard = (wastePos >= 0) ? &allCards[wastePos] : NULL;
+
+        file.close();
+
+        selectedCard1 = nullptr;
+        selectedCard2 = nullptr;
+        selectedPyramid1 = nullptr;
+        selectedPyramid2 = nullptr;
+        gameWon = false;
+        gameLost = false;
+        isNewGame = false;
+        cardCount = 52;
+
+        currentState = PLAYING;
+        cout << "Game loaded successfully from " << SAVE_FILE << endl;
+        return true;
+    }
+    void deleteSavedGame() {
+        if (remove(SAVE_FILE) == 0) {
+            cout << "Saved game deleted." << endl;
+        }
+        savedGameExists = false;
+    }            
 
     void loadCardTextures() {
         const char* suits[4] = { "H", "D", "C", "S" };
@@ -340,6 +484,7 @@ public:
         currentWasteCard = nullptr;
         createDeck();
         shuffleDeck();
+        createPyramid();
         int cardIndex = 0;
         for (int row = 0; row < 7; row++) {
             for (int col = 0; col <= row; col++) {
@@ -353,6 +498,7 @@ public:
             stockArray[++stockTop] = &allCards[i];
         }
         updateBlockedStatus();
+        deleteSavedGame();
         currentState = PLAYING;
     }
 
@@ -792,3 +938,4 @@ int main() {
     CloseWindow();
     return 0;
 }
+
