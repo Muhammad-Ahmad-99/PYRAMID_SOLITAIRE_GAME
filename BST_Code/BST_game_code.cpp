@@ -3,6 +3,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <string>
+#include <fstream>
 using namespace std;
 
 enum GameState {
@@ -276,6 +277,15 @@ public:
     const int CARD_HEIGHT = 130;
     const int CARD_SPACING = 20;
 
+    int highScores[5];
+    int highScoreCount;
+    int currentGameScoreIndex;
+    bool isNewGame;
+    bool showSaveMessage;
+    float saveMessageTimer;
+    const char* SCORE_FILE = "scores.txt";
+    const char* SAVE_FILE = "gamesave.dat";
+
 public:
     PyramidSolitaire() {
         selectedCard1 = selectedCard2 = nullptr;
@@ -287,14 +297,27 @@ public:
         stockTop = wasteTop = -1;
         currentState = MAIN_MENU;
         isPaused = false;
+
+
+
         loadCardTextures();
+        loadHighScores();
+        saveHighScores();
+        saveCurrentGameScore();
+
         stockRect = { 0, 0, 0, 0 };
         savedGameExists = false;
         checkSavedGame();
+        highScoreCount = 0;
+        currentGameScoreIndex = -1;
+        isNewGame = true;
+        showSaveMessage = false;
+        saveMessageTimer = 0.0f;
+
     }
 
     ~PyramidSolitaire() {
-        if(currentState == Playing && !gameWon && !gameLost && score > 0)
+        if (currentState == PLAYING && !gameWon && !gameLost && score > 0)
         {
             saveCurrentGameScore();
         }
@@ -307,13 +330,13 @@ public:
         UnloadTexture(background);
         UnloadTexture(stockTexture);
     }
-    void checkSavedGame(){
+    void checkSavedGame() {
         ifstream file(SAVE_FILE, ios::binary);
-         if (file.is_open()) {
-             savedGameExists = true;
-             file.close();
-         }
-        else{
+        if (file.is_open()) {
+            savedGameExists = true;
+            file.close();
+        }
+        else {
             savedGameExists = false;
         }
     }
@@ -350,13 +373,13 @@ public:
         file.write((char*)&wastePos, sizeof(wastePos));
 
         file.close();
-        
+
         savedGameExists = true;
         showSaveMessage = true;
         saveMessageTimer = 2.0f;
         cout << "Game saved successfully to " << SAVE_FILE << endl;
     }
-bool loadGame() {
+    bool loadGame() {
         ifstream file(SAVE_FILE, ios::binary);
         if (!file.is_open()) {
             cout << "Error: Could not load game from " << SAVE_FILE << endl;
@@ -394,7 +417,7 @@ bool loadGame() {
                 allPyramidCards[cardIdx].col = col;
                 allPyramidCards[cardIdx].leftChildPos = (row + 1) * 100 + col;
                 allPyramidCards[cardIdx].rightChildPos = (row + 1) * 100 + (col + 1);
-         
+
                 pyramidBST.insert(allPyramidCards[cardIdx]);
                 cardIdx++;
             }
@@ -436,7 +459,7 @@ bool loadGame() {
             cout << "Saved game deleted." << endl;
         }
         savedGameExists = false;
-    }            
+    }
 
     void loadCardTextures() {
         const char* suits[4] = { "H", "D", "C", "S" };
@@ -564,6 +587,16 @@ bool loadGame() {
     void removeCards() {
         if (selectedCard1 && isKing(selectedCard1)) {
             selectedCard1->inPlay = false;
+
+            if (currentWasteCard == selectedCard1) {
+                currentWasteCard = nullptr;
+                for (int i = wasteTop - 1; i >= 0; i--) {
+                    if (wasteArray[i]->inPlay) {
+                        currentWasteCard = wasteArray[i];
+                        break;
+                    }
+                }
+            }
             score += 10;
             moves++;
             if (currentWasteCard && !currentWasteCard->inPlay) currentWasteCard = nullptr;
@@ -576,6 +609,16 @@ bool loadGame() {
         if (selectedCard1 && selectedCard2 && isValidMove(selectedCard1, selectedCard2)) {
             selectedCard1->inPlay = false;
             selectedCard2->inPlay = false;
+
+            if (currentWasteCard == selectedCard1 || currentWasteCard == selectedCard2) {
+                currentWasteCard = nullptr;
+                for (int i = wasteTop; i >= 0; i--) {
+                    if (wasteArray[i]->inPlay) {
+                        currentWasteCard = wasteArray[i];
+                        break;
+                    }
+                }
+            }
             score += 20;
             moves++;
             if (currentWasteCard && !currentWasteCard->inPlay) currentWasteCard = nullptr;
@@ -616,28 +659,65 @@ bool loadGame() {
     }
 
     void checkWinCondition() {
-        gameWon = true;
+        bool allRemoved = true;
         for (int i = 0; i < 28; i++) {
             if (allPyramidCards[i].card && allPyramidCards[i].card->inPlay) {
                 gameWon = false;
                 break;
             }
         }
+        if (allRemoved) {
+            gameWon = true;
+            saveCurrentGameScore();
+            deleteSavedGame();
+            isNewGame = true;
+            currentGameScoreIndex = -1;
+        }
     }
+
 
     void checkLoseCondition() {
         PyramidCard arr[28];
         pyramidBST.toArray(arr);
-        Card* freeCards[30];
+        Card* freeCards[82];
         int freeCount = 0;
         for (int i = 0; i < 28; i++) {
-            PyramidCard& pc = arr[i];
-            if (pc.card->inPlay && !pc.blocked) {
-                freeCards[freeCount++] = pc.card;
+            if (isCardFree(&allPyramidCards[i])) {
+                freeCards[freeCount++] = allPyramidCards[i].card;
             }
         }
+        PyramidCard& pc = arr[i];
+        if (pc.card->inPlay && !pc.blocked) {
+            freeCards[freeCount++] = pc.card;
+        }
+
         if (currentWasteCard && currentWasteCard->inPlay)
             freeCards[freeCount++] = currentWasteCard;
+
+        for (int i = 0; i <= stockTop; i++) {
+            if (stockArray[i]->inPlay) {
+                freeCards[freeCount++] = stockArray[i];
+            }
+        }
+        for (int i = 0; i <= wasteTop; i++) {
+            if (wasteArray[i] != currentWasteCard && wasteArray[i]->inPlay) {
+                freeCards[freeCount++] = wasteArray[i];
+            }
+        }
+        if (freeCount == 0) {
+            gameLost = true;
+            saveCurrentGameScore();
+            deleteSavedGame();
+            isNewGame = true;
+            currentGameScoreIndex = -1;
+            return;
+        }
+        saveCurrentGameScore();
+        deleteSavedGame();
+        isNewGame = true;
+        currentGameScoreIndex = -1;
+
+
         for (int i = 0; i < freeCount; i++) {
             if (isKing(freeCards[i])) return;
         }
@@ -648,15 +728,20 @@ bool loadGame() {
         }
         if (stockTop >= 0) return;
         gameLost = true;
-    }
+        saveCurrentGameScore();
+        deleteSavedGame();
+        isNewGame = true;
+        currentGameScoreIndex = -1;
 
-    Rectangle getPyramidCardRect(int row, int col) {
-        int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
-        int x = startX + col * (CARD_WIDTH + CARD_SPACING);
-        int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
-        return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
-    }
 
+
+        Rectangle getPyramidCardRect(int row, int col) {
+            int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
+            int x = startX + col * (CARD_WIDTH + CARD_SPACING);
+            int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
+            return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
+        }
+    }
     void drawCard(Card* card, Rectangle rect, bool selected) {
         if (!card) return;
         if (!card->faceUp) {
@@ -869,6 +954,10 @@ bool loadGame() {
         }
     }
 
+
+
+
+
     void handleMainMenuClick(int mouseX, int mouseY) {
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
@@ -896,10 +985,104 @@ bool loadGame() {
         }
     }
 
+    void loadHighScores() {
+        ifstream file(SCORE_FILE);
+        highScoreCount = 0;
+        if (!file.is_open())
+            return;
+        while (highScoreCount < 5 && file >> highScores[highScoreCount]) {
+            highScoreCount++;
+        }
+        file.close();
+
+        for (int i = 0; i < highScoreCount - 1; i++) {
+
+            for (int j = i + 1; j < highScoreCount; j++) {
+
+                if (highScores[j] > highScores[i]) {
+                    int temp = highScores[i];
+                    highScores[i] = highScores[j];
+                    highScores[j] = temp;
+                }
+            }
+        }
+    }
+
+    void saveHighScores() {
+        ofstream file(SCORE_FILE, ios::trunc);
+        if (!file.is_open()) {
+            cout << "Error: Could not save high scores!" << endl;
+            return;
+        }
+
+        for (int i = 0; i < highScoreCount; i++) {
+            file << highScores[i] << endl;
+        }
+        file.close();
+        cout << "High scores saved successfully." << endl;
+    }
+
+    void saveCurrentGameScore() {
+
+        if (isNewGame) {
+
+            if (highScoreCount < 5) {
+
+                currentGameScoreIndex = highScoreCount;
+                highScores[highScoreCount++] = score;
+            }
+
+            else {
+
+                if (score > highScores[4]) {
+                    currentGameScoreIndex = 4;
+                    highScores[4] = score;
+                }
+            }
+            isNewGame = false;
+        }
+        else if (currentGameScoreIndex >= 0 && currentGameScoreIndex < 5) {
+
+            highScores[currentGameScoreIndex] = score;
+        }
+
+        for (int i = 0; i < highScoreCount - 1; i++) {
+
+            for (int j = i + 1; j < highScoreCount; j++) {
+
+                if (highScores[j] > highScores[i]) {
+                    int temp = highScores[i];
+                    highScores[i] = highScores[j];
+                    highScores[j] = temp;
+                }
+            }
+        }
+
+        saveHighScores();
+    }
+
+
     void update(float deltaTime) {
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+
+            if (currentState == PLAYING && !gameWon && !gameLost) {
+                saveGame();
+            }
+            currentState = MAIN_MENU;
+            isPaused = false;
+            checkSavedGame();
+            return;
+        }
+
         if (IsKeyPressed(KEY_P) && !gameWon && !gameLost) {
             isPaused = !isPaused;
         }
+
+        if (IsKeyPressed(KEY_S) && !gameWon && !gameLost && !isPaused) {
+
+            saveGame();
+        }
+
         if (isPaused) return;
         gameTime += deltaTime;
         checkLoseCondition();
@@ -938,4 +1121,3 @@ int main() {
     CloseWindow();
     return 0;
 }
-
