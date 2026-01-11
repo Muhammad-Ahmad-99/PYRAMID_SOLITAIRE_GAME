@@ -248,7 +248,7 @@ struct PyramidCard {
 };
 
 class PyramidSolitaire {
-public:
+private:
     BST<PyramidCard> pyramidBST;
     Card allCards[52];
     PyramidCard allPyramidCards[28];
@@ -261,6 +261,7 @@ public:
     PyramidCard* selectedPyramid1;
     PyramidCard* selectedPyramid2;
     Card* currentWasteCard;
+    int cardCount;
     int score;
     int moves;
     float gameTime;
@@ -285,13 +286,18 @@ public:
     float saveMessageTimer;
     const char* SCORE_FILE = "scores.txt";
     const char* SAVE_FILE = "gamesave.dat";
+    Sound cardSelectSound;
+    Sound cardMatchSound;
+    Sound cardMismatchSound;
+    Sound stockDrawSound;
+    float soundVolume;
 
 public:
     PyramidSolitaire() {
         selectedCard1 = selectedCard2 = nullptr;
         selectedPyramid1 = selectedPyramid2 = nullptr;
         currentWasteCard = nullptr;
-        score = moves = 0;
+        score = moves = cardCount = 0;
         gameTime = 0;
         gameWon = gameLost = false;
         stockTop = wasteTop = -1;
@@ -313,6 +319,9 @@ public:
         isNewGame = true;
         showSaveMessage = false;
         saveMessageTimer = 0.0f;
+        InitAudioDevice();
+        soundVolume = 0.7f;
+        loadAllSounds();
 
     }
 
@@ -329,6 +338,20 @@ public:
         }
         UnloadTexture(background);
         UnloadTexture(stockTexture);
+
+        if (cardSelectSound.frameCount > 0)
+            UnloadSound(cardSelectSound);
+
+        if (cardMatchSound.frameCount > 0)
+            UnloadSound(cardMatchSound);
+
+        if (cardMismatchSound.frameCount > 0)
+            UnloadSound(cardMismatchSound);
+
+        if (stockDrawSound.frameCount > 0)
+            UnloadSound(stockDrawSound);
+
+        CloseAudioDevice();
     }
     void checkSavedGame() {
         ifstream file(SAVE_FILE, ios::binary);
@@ -460,6 +483,56 @@ public:
         }
         savedGameExists = false;
     }
+    void loadAllSounds() {
+        cardSelectSound = { 0 };
+        cardMatchSound = { 0 };
+        cardMismatchSound = { 0 };
+        stockDrawSound = { 0 };
+
+        if (FileExists("sounds/card_select.mp3"))
+            cardSelectSound = LoadSound("sounds/card_select.mp3");
+
+        if (FileExists("sounds/card_match.mp3"))
+            cardMatchSound = LoadSound("sounds/card_match.mp3");
+
+        if (FileExists("sounds/card_mismatch.wav"))
+            cardMismatchSound = LoadSound("sounds/card_mismatch.wav");
+
+        if (FileExists("sounds/stock_draw.wav"))
+            stockDrawSound = LoadSound("sounds/stock_draw.wav");
+
+        setSoundVolume(soundVolume);
+    }
+    void setSoundVolume(float volume) {
+        soundVolume = volume;
+
+        if (cardSelectSound.frameCount > 0)
+            SetSoundVolume(cardSelectSound, volume);
+        if (cardMatchSound.frameCount > 0)
+            SetSoundVolume(cardMatchSound, volume);
+
+        if (cardMismatchSound.frameCount > 0)
+            SetSoundVolume(cardMismatchSound, volume);
+
+        if (stockDrawSound.frameCount > 0)
+            SetSoundVolume(stockDrawSound, volume);
+    }
+    void playCardSelectSound() {
+        if (cardSelectSound.frameCount > 0)
+            PlaySound(cardSelectSound);
+    }
+    void playCardMatchSound() {
+        if (cardMatchSound.frameCount > 0)
+            PlaySound(cardMatchSound);
+    }
+    void playCardMismatchSound() {
+        if (cardMismatchSound.frameCount > 0)
+            PlaySound(cardMismatchSound);
+    }
+    void playStockDrawSound() {
+        if (stockDrawSound.frameCount > 0)
+            PlaySound(stockDrawSound);
+    }
 
     void loadCardTextures() {
         const char* suits[4] = { "H", "D", "C", "S" };
@@ -493,6 +566,19 @@ public:
             int j = rand() % (i + 1);
             swap(allCards[i], allCards[j]);
             allCards[i].position = i;
+        }
+    }
+    void createPyramid() {
+        int cardIndex = 0;
+        for (int row = 0; row < 7; row++) {
+            for (int col = 0; col <= row; col++) {
+                Card* card = &allCards[cardIndex];
+                card->faceUp = true;
+                PyramidCard pyramidCard(card, row, col);
+                allPyramidCards[cardIndex] = pyramidCard;
+                pyramidBST.insert(pyramidCard);
+                cardIndex++;
+            }
         }
     }
 
@@ -565,6 +651,7 @@ public:
     }
 
     void drawCardFromStock() {
+        playStockDrawSound();
         moves++;
         if (stockTop < 0) {
             while (wasteTop >= 0) {
@@ -607,6 +694,7 @@ public:
             return;
         }
         if (selectedCard1 && selectedCard2 && isValidMove(selectedCard1, selectedCard2)) {
+            playCardMatchSound();
             selectedCard1->inPlay = false;
             selectedCard2->inPlay = false;
 
@@ -628,6 +716,7 @@ public:
             checkWinCondition();
         }
         else if (selectedCard1 && selectedCard2) {
+            playCardMismatchSound();
             moves++;
             selectedCard1 = selectedCard2 = nullptr;
             selectedPyramid1 = selectedPyramid2 = nullptr;
@@ -637,6 +726,8 @@ public:
     void selectCard(Card* card, PyramidCard* pc) {
         if (!card || !card->inPlay) return;
         if (pc && !isCardFree(pc)) return;
+
+        playCardSelectSound();
         if (isKing(card)) {
             selectedCard1 = card;
             selectedPyramid1 = pc;
@@ -662,7 +753,7 @@ public:
         bool allRemoved = true;
         for (int i = 0; i < 28; i++) {
             if (allPyramidCards[i].card && allPyramidCards[i].card->inPlay) {
-                gameWon = false;
+                allRemoved = false;
                 break;
             }
         }
@@ -686,9 +777,11 @@ public:
                 freeCards[freeCount++] = allPyramidCards[i].card;
             }
         }
-        PyramidCard& pc = arr[i];
-        if (pc.card->inPlay && !pc.blocked) {
-            freeCards[freeCount++] = pc.card;
+        for (int i = 0; i < 28; i++) {
+            PyramidCard& pc = arr[i];
+            if (pc.card && pc.card->inPlay && !pc.blocked) {
+                freeCards[freeCount++] = pc.card;
+            }
         }
 
         if (currentWasteCard && currentWasteCard->inPlay)
@@ -712,10 +805,6 @@ public:
             currentGameScoreIndex = -1;
             return;
         }
-        saveCurrentGameScore();
-        deleteSavedGame();
-        isNewGame = true;
-        currentGameScoreIndex = -1;
 
 
         for (int i = 0; i < freeCount; i++) {
@@ -726,22 +815,22 @@ public:
                 if (isValidMove(freeCards[i], freeCards[j])) return;
             }
         }
-        if (stockTop >= 0) return;
-        gameLost = true;
-        saveCurrentGameScore();
-        deleteSavedGame();
-        isNewGame = true;
-        currentGameScoreIndex = -1;
-
-
-
-        Rectangle getPyramidCardRect(int row, int col) {
-            int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
-            int x = startX + col * (CARD_WIDTH + CARD_SPACING);
-            int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
-            return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
+        if (stockTop < 0) {
+            gameLost = true;
+            saveCurrentGameScore();
+            deleteSavedGame();
+            isNewGame = true;
+            currentGameScoreIndex = -1;
         }
+
     }
+    Rectangle getPyramidCardRect(int row, int col) {
+        int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
+        int x = startX + col * (CARD_WIDTH + CARD_SPACING);
+        int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
+        return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
+      }
+   
     void drawCard(Card* card, Rectangle rect, bool selected) {
         if (!card) return;
         if (!card->faceUp) {
@@ -788,17 +877,33 @@ public:
         int sh = GetScreenHeight();
         DrawText("PYRAMID SOLITAIRE", sw / 2 - 250, sh / 2 - 300, 50, GOLD);
         Rectangle playBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 180), 300, 60 };
-        Rectangle instructBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 90), 300, 60 };
-        Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2), 300, 60 };
+        Rectangle loadBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 90), 300, 60 };
+        Rectangle instructBtn = { (float)(sw / 2 - 150), (float)(sh / 2), 300, 60 };
+        Rectangle highScoreBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 90), 300, 60 };
+        Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 180), 300, 60 };
+
         DrawRectangleRec(playBtn, DARKGREEN);
         DrawRectangleLinesEx(playBtn, 3, GREEN);
         DrawText("NEW GAME", sw / 2 - 110, sh / 2 - 160, 25, WHITE);
+        if (savedGameExists) {
+            DrawRectangleRec(loadBtn, PURPLE);
+            DrawRectangleLinesEx(loadBtn, 3, VIOLET);
+            DrawText("LOAD GAME", sw / 2 - 110, sh / 2 - 70, 25, WHITE);
+        }
+        else {
+            DrawRectangleRec(loadBtn, DARKGRAY);
+            DrawRectangleLinesEx(loadBtn, 3, GRAY);
+            DrawText("LOAD GAME", sw / 2 - 110, sh / 2 - 70, 25, GRAY);
+        }
         DrawRectangleRec(instructBtn, DARKBLUE);
         DrawRectangleLinesEx(instructBtn, 3, BLUE);
-        DrawText("INSTRUCTIONS", sw / 2 - 110, sh / 2 - 70, 25, WHITE);
+        DrawText("INSTRUCTIONS", sw / 2 - 110, sh / 2 + 20, 25, WHITE);
+        DrawRectangleRec(highScoreBtn, ORANGE);
+        DrawRectangleLinesEx(highScoreBtn, 3, RED);
+        DrawText("HIGH SCORES", sw / 2 - 100, sh / 2 + 110, 25, WHITE);
         DrawRectangleRec(exitBtn, DARKGRAY);
         DrawRectangleLinesEx(exitBtn, 3, BLACK);
-        DrawText("EXIT GAME", sw / 2 - 80, sh / 2 + 20, 25, WHITE);
+        DrawText("EXIT GAME", sw / 2 - 80, sh / 2 + 200, 25, WHITE);
         EndDrawing();
     }
 
@@ -837,8 +942,35 @@ public:
         DrawText("BACK TO MENU", sw / 2 - 85, sh - 105, 20, WHITE);
         EndDrawing();
     }
+    void renderHighScores() {
+        BeginDrawing();
+        drawBackground();
+
+     
+        int sw = GetScreenWidth();
+     
+        int sh = GetScreenHeight();
+
+        DrawRectangle(0, 0, sw, sh, { 0, 0, 0, 150 });
+        DrawText("TOP 5 HIGH SCORES", sw / 2 - 180, 100, 40, GOLD);
+        for (int i = 0; i < highScoreCount; i++) {
+            DrawText(TextFormat("%d. %d", i + 1, highScores[i]), sw / 2 - 50, 200 + i * 60, 35, WHITE);
+        }
+        if (highScoreCount == 0) {
+            DrawText("No scores yet!", sw / 2 - 80, 200, 30, WHITE);
+        }
+        Rectangle backBtn = { (float)(sw / 2 - 100), sh - 120.0f, 200, 50 };
+        DrawRectangleRec(backBtn, DARKGRAY);
+        DrawRectangleLinesEx(backBtn, 2, WHITE);
+        DrawText("BACK TO MENU", sw / 2 - 85, sh - 105, 20, WHITE);
+        EndDrawing();
+    }
 
     void render() {
+        if (currentState == HIGH_SCORES) {
+            renderHighScores();
+            return;
+        }
         if (currentState == MAIN_MENU) {
             renderMainMenu();
             return;
@@ -950,6 +1082,10 @@ public:
         }
         if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, stockRect)) {
             drawCardFromStock();
+            selectedCard1 = nullptr;
+            selectedCard2 = nullptr;
+            selectedPyramid1 = nullptr;
+            selectedPyramid2 = nullptr;
             return;
         }
     }
@@ -962,13 +1098,21 @@ public:
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
         Rectangle playBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 180), 300, 60 };
-        Rectangle instructBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 90), 300, 60 };
-        Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2), 300, 60 };
+        Rectangle loadBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 90), 300, 60 };
+        Rectangle instructBtn = { (float)(sw / 2 - 150), (float)(sh / 2), 300, 60 };
+        Rectangle highScoreBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 90), 300, 60 };
+        Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 180), 300, 60 };
         if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, playBtn)) {
             initGame();
         }
+        else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, loadBtn) && savedGameExists) {
+            loadGame();
+        }
         else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, instructBtn)) {
             currentState = INSTRUCTIONS;
+        }
+        else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, highScoreBtn)) {
+            currentState = HIGH_SCORES;
         }
         else if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, exitBtn)) {
             CloseWindow();
@@ -980,6 +1124,15 @@ public:
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
         Rectangle backBtn = { (float)(sw / 2 - 100), (float)(sh - 120), 200, 50 };
+        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, backBtn)) {
+            currentState = MAIN_MENU;
+        }
+    }
+    void handleHighScoresClick(int mouseX, int mouseY) {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        Rectangle backBtn = { (float)(sw / 2 - 100), sh - 120.0f, 200, 50 };
         if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, backBtn)) {
             currentState = MAIN_MENU;
         }
@@ -1063,6 +1216,12 @@ public:
 
 
     void update(float deltaTime) {
+        if (showSaveMessage) {
+            saveMessageTimer -= deltaTime;
+            if (saveMessageTimer <= 0) {
+                showSaveMessage = false;
+            }
+        }
         if (IsKeyPressed(KEY_BACKSPACE)) {
 
             if (currentState == PLAYING && !gameWon && !gameLost) {
@@ -1071,6 +1230,28 @@ public:
             currentState = MAIN_MENU;
             isPaused = false;
             checkSavedGame();
+            return;
+        }
+
+        if (currentState == HIGH_SCORES) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                handleHighScoresClick((int)mousePos.x, (int)mousePos.y);
+            }
+            return;
+        }
+        if (currentState == MAIN_MENU) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                handleMainMenuClick((int)mousePos.x, (int)mousePos.y);
+            }
+            return;
+        }
+        if (currentState == INSTRUCTIONS) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                handleInstructionsClick((int)mousePos.x, (int)mousePos.y);
+            }
             return;
         }
 
