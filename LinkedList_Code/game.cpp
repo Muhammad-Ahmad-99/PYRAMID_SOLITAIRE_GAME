@@ -302,7 +302,8 @@ private:
     Sound stockDrawSound;
     float soundVolume;
 
-    struct SaveData {
+    struct SaveData
+    {
         int score;
         int moves;
         float gameTime;
@@ -321,7 +322,6 @@ private:
         int wasteHistorySize;
         int currentWasteIndex;
     };
-
 
 public:
     PyramidSolitaire()
@@ -706,55 +706,68 @@ public:
         }
     }
 
-   void createPyramid() {
+    void createPyramid()
+    {
         int cardIndex = 0;
-        PyramidNode* prevRowHeads[7] = { nullptr };
+        PyramidNode *prevRowHeads[7] = {nullptr};
 
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* rowHead = nullptr;
-            PyramidNode* rowTail = nullptr;
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *rowHead = nullptr;
+            PyramidNode *rowTail = nullptr;
 
-            for (int col = 0; col <= row; col++) {
-                Card* card = &allCards[cardIndex++];
+            for (int col = 0; col <= row; col++)
+            {
+                Card *card = &allCards[cardIndex++];
                 card->faceUp = true;
-                PyramidNode* node = new PyramidNode(card, row, col);
+                PyramidNode *node = new PyramidNode(card, row, col);
 
-                if (!rowHead) {
+                if (!rowHead)
+                {
                     rowHead = node;
                     rowTail = node;
                 }
-                else {
+                else
+                {
                     rowTail->nextInRow = node;
                     rowTail = node;
                 }
 
-                if (row > 0) {
-                    PyramidNode* prevRowNode = prevRowHeads[row - 1];
+                if (row > 0)
+                {
+                    PyramidNode *prevRowNode = prevRowHeads[row - 1];
                     int count = 0;
-                    while (prevRowNode && count < col) {
+                    while (prevRowNode && count < col)
+                    {
                         prevRowNode = prevRowNode->nextInRow;
                         count++;
                     }
 
-                    if (prevRowNode && count == col) {
-                        if (col < row) {
+                    if (prevRowNode && count == col)
+                    {
+                        if (col < row)
+                        {
                             prevRowNode->left = node;
                         }
-                        if (col > 0) {
-                            PyramidNode* leftParent = prevRowHeads[row - 1];
+                        if (col > 0)
+                        {
+                            PyramidNode *leftParent = prevRowHeads[row - 1];
                             count = 0;
-                            while (leftParent && count < col - 1) {
+                            while (leftParent && count < col - 1)
+                            {
                                 leftParent = leftParent->nextInRow;
                                 count++;
                             }
-                            if (leftParent) {
+                            if (leftParent)
+                            {
                                 leftParent->right = node;
                             }
                         }
                     }
                 }
 
-                if (row == 6) {
+                if (row == 6)
+                {
                     node->blocked = false;
                 }
             }
@@ -763,7 +776,6 @@ public:
             prevRowHeads[row] = rowHead;
         }
     }
-
 
     void clearPyramid()
     {
