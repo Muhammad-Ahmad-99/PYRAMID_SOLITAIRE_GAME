@@ -228,7 +228,7 @@ private:
     int cardCount;
     Rectangle stockRect;
 
-     struct SaveData {
+    struct SaveData {
         int score;
         int moves;
         float gameTime;
@@ -632,7 +632,7 @@ public:
             pyramidRows[row] = nullptr;
         }
     }
-    
+
     void updateBlockedStatus() {
         for (int row = 0; row < 7; row++) {
             PyramidNode* current = pyramidRows[row];
@@ -647,11 +647,11 @@ public:
         }
     }
 
-     bool isCardFree(PyramidNode* node) {
+    bool isCardFree(PyramidNode* node) {
         if (!node || !node->card || !node->card->inPlay)
             return false;
         return !node->blocked;
-    }    
+    }
 
     bool isValidMove(Card* c1, Card* c2) {
         if (!c1 || !c2)
@@ -906,13 +906,14 @@ public:
             selectedNode2 = nullptr;
             return;
         }
-    }
 
-    Rectangle getPyramidCardRect(int row, int col) {
-        int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
-        int x = startX + col * (CARD_WIDTH + CARD_SPACING);
-        int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
-        return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
+
+        Rectangle getPyramidCardRect(int row, int col) {
+            int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
+            int x = startX + col * (CARD_WIDTH + CARD_SPACING);
+            int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
+            return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
+        }
     }
 
     void drawCard(Card* card, Rectangle rect, bool selected) {
@@ -1099,7 +1100,7 @@ public:
 
         EndDrawing();
     }
-     void saveGame() {
+    void saveGame() {
         SaveData data = {};
 
         data.score = score;
@@ -1172,6 +1173,94 @@ public:
             cout << "Game saved successfully!" << endl;
         }
     }
+    void update(float deltaTime) {
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+            if (currentState == PLAYING && !gameWon && !gameLost) {
+                if (score > 0) {
+                    saveCurrentGameScore();
+                }
+                saveGame();
+            }
+            currentState = MAIN_MENU;
+            isPaused = false;
+            return;
+        }
+
+        if (currentState == HIGH_SCORES) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                handleHighScoresClick((int)mousePos.x, (int)mousePos.y);
+            }
+            return;
+        }
+
+        if (currentState == MAIN_MENU) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                handleMainMenuClick((int)mousePos.x, (int)mousePos.y);
+            }
+            return;
+        }
+
+        if (currentState == INSTRUCTIONS) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                handleInstructionsClick((int)mousePos.x, (int)mousePos.y);
+            }
+            return;
+        }
+
+       
+        if (IsKeyPressed(KEY_P) && !gameWon && !gameLost) {
+            isPaused = !isPaused;
+        }
+
+        if (isPaused) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                int sw = GetScreenWidth();
+                int sh = GetScreenHeight();
+                Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
+                if (CheckCollisionPointRec(mousePos, restartBtn)) {
+                    if (score > 0) {
+                        saveCurrentGameScore();
+                    }
+                    initGame();
+                    return;
+                }
+            }
+            return;
+        }
+
+        if (!gameWon && !gameLost) {
+            gameTime += deltaTime;
+
+            static float checkTimer = 0.0f;
+            checkTimer += deltaTime;
+            if (checkTimer >= 1.0f) {
+                checkLoseCondition();
+                checkTimer = 0.0f;
+            }
+        }
+
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            Vector2 mousePos = GetMousePosition();
+
+            int sw = GetScreenWidth();
+            int sh = GetScreenHeight();
+            Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
+            if (CheckCollisionPointRec(mousePos, restartBtn)) {
+                if (score > 0) {
+                    saveCurrentGameScore();
+                }
+                initGame();
+                return;
+            }
+
+            handleMouseClick((int)mousePos.x, (int)mousePos.y);
+        }
+    }
+
     bool loadGame() {
         ifstream in(SAVE_FILE, ios::binary);
         if (!in.is_open()) {
@@ -1298,28 +1387,29 @@ public:
     bool hasSaveGame() {
         ifstream file(SAVE_FILE);
         return file.good();
-    }
+
 
         if (remove(SAVE_FILE) == 0) {
             cout << "Save file deleted." << endl;
         }
     }
 
-    int main() {
-        const int screenWidth = 1400;
-        const int screenHeight = 950;
-
-        InitWindow(screenWidth, screenHeight, "Pyramid Solitaire Game - STACK BASED");
-        SetTargetFPS(60);
-
-        PyramidSolitaire game;
-
-        while (!WindowShouldClose()) {
-            game.update(GetFrameTime());
-            game.render();
-        }
-
-        CloseWindow();
-        return 0;
-    }
 };
+
+int main() {
+    const int screenWidth = 1400;
+    const int screenHeight = 950;
+
+    InitWindow(screenWidth, screenHeight, "Pyramid Solitaire Game - STACK BASED");
+    SetTargetFPS(60);
+
+    PyramidSolitaire game;
+
+    while (!WindowShouldClose()) {
+        game.update(GetFrameTime());
+        game.render();
+    }
+
+    CloseWindow();
+    return 0;
+}
