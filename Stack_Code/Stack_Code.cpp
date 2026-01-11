@@ -6,18 +6,21 @@
 
 using namespace std;
 
-enum GameState {
+// Game State Enum
+enum GameState
+{
     MAIN_MENU,
     PLAYING,
     INSTRUCTIONS,
     HIGH_SCORES
 };
 
+// Card class
 class Card
 {
 public:
-    int value;
-    int suit;
+    int value; // 1–13 (Ace to King)
+    int suit;  // 0–3 (Hearts, Diamonds, Clubs, Spades)
     bool faceUp;
     bool inPlay;
 
@@ -38,12 +41,13 @@ public:
     }
 };
 
+// Stack Node
 template <class T>
 class StackNode
 {
 public:
     T data;
-    StackNode<T>* next;
+    StackNode<T> *next;
 
     StackNode(T d)
     {
@@ -52,10 +56,12 @@ public:
     }
 };
 
-template<typename T>
-class Stack {
+// Stack class
+template <typename T>
+class Stack
+{
 private:
-    StackNode<T>* top;
+    StackNode<T> *top;
     int size;
 
 public:
@@ -65,70 +71,85 @@ public:
         size = 0;
     }
 
-    ~Stack() {
+    ~Stack()
+    {
         clear();
     }
 
-    void push(T data) {
-        StackNode<T>* newNode = new StackNode<T>(data);
+    void push(T data)
+    {
+        StackNode<T> *newNode = new StackNode<T>(data);
         newNode->next = top;
         top = newNode;
         size++;
     }
 
-    T pop() {
+    T pop()
+    {
         if (!top)
             return T();
 
         T data = top->data;
-        StackNode<T>* temp = top;
+        StackNode<T> *temp = top;
         top = top->next;
         delete temp;
         size--;
         return data;
     }
 
-    T peek() {
+    T peek()
+    {
         if (top)
             return top->data;
         return T();
     }
 
-    bool isEmpty() {
+    bool isEmpty()
+    {
         return top == nullptr;
     }
 
-    int getSize() {
+    int getSize()
+    {
         return size;
     }
 
-    void clear() {
-        while (top) {
-            StackNode<T>* temp = top;
+    void clear()
+    {
+        while (top)
+        {
+            StackNode<T> *temp = top;
             top = top->next;
             delete temp;
         }
         size = 0;
     }
 
-    StackNode<T>* getTop() {
+    StackNode<T> *getTop()
+    {
         return top;
     }
 
-    T getAt(int index) {
+    // Helper function to get element at specific position
+    T getAt(int index)
+    {
         if (index < 0 || index >= size)
             return T();
 
-        StackNode<T>* current = top;
-        for (int i = 0; i < index; i++) {
+        StackNode<T> *current = top;
+        for (int i = 0; i < index; i++)
+        {
             current = current->next;
         }
         return current->data;
     }
 
-    bool contains(T data) {
-        StackNode<T>* current = top;
-        while (current) {
+    // Helper to check if element exists
+    bool contains(T data)
+    {
+        StackNode<T> *current = top;
+        while (current)
+        {
             if (current->data == data)
                 return true;
             current = current->next;
@@ -136,19 +157,24 @@ public:
         return false;
     }
 
-    void remove(T data) {
+    // Remove specific element (needed for waste history)
+    void remove(T data)
+    {
         if (!top)
             return;
 
-        if (top->data == data) {
+        if (top->data == data)
+        {
             pop();
             return;
         }
 
-        StackNode<T>* current = top;
-        while (current->next) {
-            if (current->next->data == data) {
-                StackNode<T>* temp = current->next;
+        StackNode<T> *current = top;
+        while (current->next)
+        {
+            if (current->next->data == data)
+            {
+                StackNode<T> *temp = current->next;
                 current->next = temp->next;
                 delete temp;
                 size--;
@@ -159,18 +185,19 @@ public:
     }
 };
 
+// Pyramid Node
 class PyramidNode
 {
 public:
-    Card* card;
-    PyramidNode* left;
-    PyramidNode* right;
-    PyramidNode* nextInRow;
+    Card *card;
+    PyramidNode *left;
+    PyramidNode *right;
+    PyramidNode *nextInRow;
     int row;
     int col;
     bool blocked;
 
-    PyramidNode(Card* c, int r, int cl)
+    PyramidNode(Card *c, int r, int cl)
     {
         card = c;
         left = NULL;
@@ -182,21 +209,23 @@ public:
     }
 };
 
-class PyramidSolitaire {
+// Game class
+class PyramidSolitaire
+{
 private:
-    Stack<Card> deck;
-    Stack<Card*> stock;
-    Stack<Card*> stockBackup;
-    Stack<Card*> wasteHistory;
+    Stack<Card> deck;           // Stack for deck creation
+    Stack<Card *> stock;        // Stock pile (LIFO - draw from top)
+    Stack<Card *> stockBackup;  // Backup of stock for reset
+    Stack<Card *> wasteHistory; // Waste pile history (LIFO)
 
-    PyramidNode* pyramidRows[7];
+    PyramidNode *pyramidRows[7];
 
-    Card* selectedCard1;
-    Card* selectedCard2;
-    PyramidNode* selectedNode1;
-    PyramidNode* selectedNode2;
+    Card *selectedCard1;
+    Card *selectedCard2;
+    PyramidNode *selectedNode1;
+    PyramidNode *selectedNode2;
 
-    Card* currentWasteCard;
+    Card *currentWasteCard;
     int stockPosition;
 
     int score;
@@ -217,8 +246,8 @@ private:
     int highScores[5];
     int highScoreCount;
 
-    const char* SCORE_FILE = "scores.txt";
-    const char* SAVE_FILE = "savegame.dat";
+    const char *SCORE_FILE = "scores.txt";
+    const char *SAVE_FILE = "savegame.dat";
 
     const int CARD_WIDTH = 90;
     const int CARD_HEIGHT = 130;
@@ -228,7 +257,14 @@ private:
     int cardCount;
     Rectangle stockRect;
 
-    struct SaveData {
+    Sound cardSelectSound;
+    Sound cardMatchSound;
+    Sound cardMismatchSound;
+    Sound stockDrawSound;
+    float soundVolume;
+
+    struct SaveData
+    {
         int score;
         int moves;
         float gameTime;
@@ -248,15 +284,11 @@ private:
         int currentWasteIndex;
     };
 
-    Sound cardSelectSound;
-    Sound cardMatchSound;
-    Sound cardMismatchSound;
-    Sound stockDrawSound;
-    float soundVolume;
-
 public:
-    PyramidSolitaire() {
-        for (int i = 0; i < 7; i++) {
+    PyramidSolitaire()
+    {
+        for (int i = 0; i < 7; i++)
+        {
             pyramidRows[i] = nullptr;
         }
 
@@ -284,17 +316,21 @@ public:
         soundVolume = 0.7f;
         loadAllSounds();
         loadCardTextures();
-        stockRect = { 0, 0, 0, 0 };
+        stockRect = {0, 0, 0, 0};
     }
 
-    ~PyramidSolitaire() {
-        if (currentState == PLAYING && !gameWon && !gameLost && score > 0) {
+    ~PyramidSolitaire()
+    {
+        if (currentState == PLAYING && !gameWon && !gameLost && score > 0)
+        {
             saveCurrentGameScore();
             saveGame();
         }
 
-        for (int s = 0; s < 4; s++) {
-            for (int v = 0; v < 13; v++) {
+        for (int s = 0; s < 4; s++)
+        {
+            for (int v = 0; v < 13; v++)
+            {
                 UnloadTexture(cardTextures[s][v]);
             }
         }
@@ -314,11 +350,12 @@ public:
         clearPyramid();
     }
 
-    void loadAllSounds() {
-        cardSelectSound = { 0 };
-        cardMatchSound = { 0 };
-        cardMismatchSound = { 0 };
-        stockDrawSound = { 0 };
+    void loadAllSounds()
+    {
+        cardSelectSound = {0};
+        cardMatchSound = {0};
+        cardMismatchSound = {0};
+        stockDrawSound = {0};
 
         if (FileExists("sounds/card_select.mp3"))
             cardSelectSound = LoadSound("sounds/card_select.mp3");
@@ -332,7 +369,8 @@ public:
         setSoundVolume(soundVolume);
     }
 
-    void setSoundVolume(float volume) {
+    void setSoundVolume(float volume)
+    {
         soundVolume = volume;
         if (cardSelectSound.frameCount > 0)
             SetSoundVolume(cardSelectSound, volume);
@@ -344,69 +382,86 @@ public:
             SetSoundVolume(stockDrawSound, volume);
     }
 
-    void playCardSelectSound() {
+    void playCardSelectSound()
+    {
         if (cardSelectSound.frameCount > 0)
             PlaySound(cardSelectSound);
     }
 
-    void playCardMatchSound() {
+    void playCardMatchSound()
+    {
         if (cardMatchSound.frameCount > 0)
             PlaySound(cardMatchSound);
     }
 
-    void playCardMismatchSound() {
+    void playCardMismatchSound()
+    {
         if (cardMismatchSound.frameCount > 0)
             PlaySound(cardMismatchSound);
     }
 
-    void playStockDrawSound() {
+    void playStockDrawSound()
+    {
         if (stockDrawSound.frameCount > 0)
             PlaySound(stockDrawSound);
     }
 
-    void loadHighScores() {
+    void loadHighScores()
+    {
         ifstream file(SCORE_FILE);
         highScoreCount = 0;
 
         if (!file.is_open())
             return;
 
-        while (file >> highScores[highScoreCount] && highScoreCount < 5) {
+        while (file >> highScores[highScoreCount] && highScoreCount < 5)
+        {
             highScoreCount++;
         }
         file.close();
 
-        for (int i = 0; i < highScoreCount - 1; i++) {
-            for (int j = i + 1; j < highScoreCount; j++) {
-                if (highScores[j] > highScores[i]) {
+        for (int i = 0; i < highScoreCount - 1; i++)
+        {
+            for (int j = i + 1; j < highScoreCount; j++)
+            {
+                if (highScores[j] > highScores[i])
+                {
                     swap(highScores[i], highScores[j]);
                 }
             }
         }
     }
 
-    void saveHighScores() {
+    void saveHighScores()
+    {
         ofstream file(SCORE_FILE, ios::trunc);
-        for (int i = 0; i < highScoreCount; i++) {
+        for (int i = 0; i < highScoreCount; i++)
+        {
             file << highScores[i] << endl;
         }
         file.close();
     }
 
-    void updateHighScores(int newScore) {
+    void updateHighScores(int newScore)
+    {
         if (newScore <= 0)
             return;
 
-        if (highScoreCount < 5) {
+        if (highScoreCount < 5)
+        {
             highScores[highScoreCount++] = newScore;
         }
-        else {
+        else
+        {
             highScores[4] = newScore;
         }
 
-        for (int i = 0; i < highScoreCount - 1; i++) {
-            for (int j = i + 1; j < highScoreCount; j++) {
-                if (highScores[j] > highScores[i]) {
+        for (int i = 0; i < highScoreCount - 1; i++)
+        {
+            for (int j = i + 1; j < highScoreCount; j++)
+            {
+                if (highScores[j] > highScores[i])
+                {
                     swap(highScores[i], highScores[j]);
                 }
             }
@@ -415,48 +470,63 @@ public:
         saveHighScores();
     }
 
-    void saveCurrentGameScore() {
-        if (isNewGame) {
-            if (highScoreCount < 5) {
+    void saveCurrentGameScore()
+    {
+        if (isNewGame)
+        {
+            if (highScoreCount < 5)
+            {
                 currentGameScoreIndex = highScoreCount;
                 highScores[highScoreCount++] = score;
             }
-            else {
-                if (score > highScores[4]) {
+            else
+            {
+                if (score > highScores[4])
+                {
                     currentGameScoreIndex = 4;
                     highScores[4] = score;
                 }
-                else {
+                else
+                {
                     currentGameScoreIndex = -1;
                 }
             }
             isNewGame = false;
         }
-        else if (currentGameScoreIndex >= 0) {
+        else if (currentGameScoreIndex >= 0)
+        {
             highScores[currentGameScoreIndex] = score;
         }
-        else if (score > 0 && highScoreCount < 5) {
+        else if (score > 0 && highScoreCount < 5)
+        {
             currentGameScoreIndex = highScoreCount;
             highScores[highScoreCount++] = score;
             isNewGame = false;
         }
-        else if (score > 0 && highScoreCount == 5 && score > highScores[4]) {
+        else if (score > 0 && highScoreCount == 5 && score > highScores[4])
+        {
             currentGameScoreIndex = 4;
             highScores[4] = score;
             isNewGame = false;
         }
 
-        for (int i = 0; i < highScoreCount - 1; i++) {
-            for (int j = i + 1; j < highScoreCount; j++) {
-                if (highScores[j] > highScores[i]) {
+        for (int i = 0; i < highScoreCount - 1; i++)
+        {
+            for (int j = i + 1; j < highScoreCount; j++)
+            {
+                if (highScores[j] > highScores[i])
+                {
                     swap(highScores[i], highScores[j]);
                 }
             }
         }
 
-        if (currentGameScoreIndex >= 0 && !isNewGame) {
-            for (int i = 0; i < highScoreCount; i++) {
-                if (highScores[i] == score) {
+        if (currentGameScoreIndex >= 0 && !isNewGame)
+        {
+            for (int i = 0; i < highScoreCount; i++)
+            {
+                if (highScores[i] == score)
+                {
                     currentGameScoreIndex = i;
                     break;
                 }
@@ -466,14 +536,16 @@ public:
         saveHighScores();
     }
 
-    void loadCardTextures() {
-        const char* suits[4] = { "H", "D", "C", "S" };
-        const char* values[13] = {
-            "A","2","3","4","5","6","7","8","9","10","J","Q","K"
-        };
+    void loadCardTextures()
+    {
+        const char *suits[4] = {"H", "D", "C", "S"};
+        const char *values[13] = {
+            "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"};
 
-        for (int s = 0; s < 4; s++) {
-            for (int v = 0; v < 13; v++) {
+        for (int s = 0; s < 4; s++)
+        {
+            for (int v = 0; v < 13; v++)
+            {
                 string path = "images/";
                 path += values[v];
                 path += suits[s];
@@ -486,7 +558,8 @@ public:
         background = LoadTexture("images/background.jpg");
     }
 
-    void initGame() {
+    void initGame()
+    {
         clearPyramid();
         deck.clear();
         stock.clear();
@@ -513,7 +586,8 @@ public:
         shuffleDeck();
         createPyramid();
 
-        for (int i = 51; i >= 28; i--) {
+        for (int i = 51; i >= 28; i--)
+        {
             stock.push(&allCards[i]);
             stockBackup.push(&allCards[i]);
         }
@@ -522,10 +596,13 @@ public:
         deleteSaveGame();
     }
 
-    void createDeck() {
+    void createDeck()
+    {
         cardCount = 0;
-        for (int suit = 0; suit < 4; suit++) {
-            for (int value = 1; value <= 13; value++) {
+        for (int suit = 0; suit < 4; suit++)
+        {
+            for (int value = 1; value <= 13; value++)
+            {
                 allCards[cardCount] = Card(value, suit);
                 deck.push(allCards[cardCount]);
                 cardCount++;
@@ -533,85 +610,109 @@ public:
         }
     }
 
-    void shuffleDeck() {
+    void shuffleDeck()
+    {
         srand(time(nullptr));
 
+        // Transfer stack to array for shuffling
         Card tempDeck[52];
         int index = 0;
 
+        // Pop all from stack to array
         Stack<Card> tempStack;
-        while (!deck.isEmpty()) {
+        while (!deck.isEmpty())
+        {
             tempStack.push(deck.pop());
         }
 
-        while (!tempStack.isEmpty()) {
+        while (!tempStack.isEmpty())
+        {
             tempDeck[index++] = tempStack.pop();
         }
 
-        for (int i = 51; i > 0; i--) {
+        // Shuffle array
+        for (int i = 51; i > 0; i--)
+        {
             int j = rand() % (i + 1);
             swap(tempDeck[i], tempDeck[j]);
         }
 
-        for (int i = 0; i < 52; i++) {
+        // Update allCards array
+        for (int i = 0; i < 52; i++)
+        {
             allCards[i] = tempDeck[i];
         }
 
+        // Push back to deck stack
         deck.clear();
-        for (int i = 0; i < 52; i++) {
+        for (int i = 0; i < 52; i++)
+        {
             deck.push(allCards[i]);
         }
     }
 
-    void createPyramid() {
+    void createPyramid()
+    {
         int cardIndex = 0;
-        PyramidNode* prevRowHeads[7] = { nullptr };
+        PyramidNode *prevRowHeads[7] = {nullptr};
 
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* rowHead = nullptr;
-            PyramidNode* rowTail = nullptr;
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *rowHead = nullptr;
+            PyramidNode *rowTail = nullptr;
 
-            for (int col = 0; col <= row; col++) {
-                Card* card = &allCards[cardIndex++];
+            for (int col = 0; col <= row; col++)
+            {
+                Card *card = &allCards[cardIndex++];
                 card->faceUp = true;
-                PyramidNode* node = new PyramidNode(card, row, col);
+                PyramidNode *node = new PyramidNode(card, row, col);
 
-                if (!rowHead) {
+                if (!rowHead)
+                {
                     rowHead = node;
                     rowTail = node;
                 }
-                else {
+                else
+                {
                     rowTail->nextInRow = node;
                     rowTail = node;
                 }
 
-                if (row > 0) {
-                    PyramidNode* prevRowNode = prevRowHeads[row - 1];
+                if (row > 0)
+                {
+                    PyramidNode *prevRowNode = prevRowHeads[row - 1];
                     int count = 0;
-                    while (prevRowNode && count < col) {
+                    while (prevRowNode && count < col)
+                    {
                         prevRowNode = prevRowNode->nextInRow;
                         count++;
                     }
 
-                    if (prevRowNode && count == col) {
-                        if (col < row) {
+                    if (prevRowNode && count == col)
+                    {
+                        if (col < row)
+                        {
                             prevRowNode->left = node;
                         }
-                        if (col > 0) {
-                            PyramidNode* leftParent = prevRowHeads[row - 1];
+                        if (col > 0)
+                        {
+                            PyramidNode *leftParent = prevRowHeads[row - 1];
                             count = 0;
-                            while (leftParent && count < col - 1) {
+                            while (leftParent && count < col - 1)
+                            {
                                 leftParent = leftParent->nextInRow;
                                 count++;
                             }
-                            if (leftParent) {
+                            if (leftParent)
+                            {
                                 leftParent->right = node;
                             }
                         }
                     }
                 }
 
-                if (row == 6) {
+                if (row == 6)
+                {
                     node->blocked = false;
                 }
             }
@@ -621,11 +722,14 @@ public:
         }
     }
 
-    void clearPyramid() {
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* current = pyramidRows[row];
-            while (current) {
-                PyramidNode* next = current->nextInRow;
+    void clearPyramid()
+    {
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *current = pyramidRows[row];
+            while (current)
+            {
+                PyramidNode *next = current->nextInRow;
                 delete current;
                 current = next;
             }
@@ -633,11 +737,15 @@ public:
         }
     }
 
-    void updateBlockedStatus() {
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* current = pyramidRows[row];
-            while (current) {
-                if (current->card && current->card->inPlay) {
+    void updateBlockedStatus()
+    {
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *current = pyramidRows[row];
+            while (current)
+            {
+                if (current->card && current->card->inPlay)
+                {
                     bool leftBlocking = (current->left && current->left->card && current->left->card->inPlay);
                     bool rightBlocking = (current->right && current->right->card && current->right->card->inPlay);
                     current->blocked = leftBlocking || rightBlocking;
@@ -647,13 +755,15 @@ public:
         }
     }
 
-    bool isCardFree(PyramidNode* node) {
+    bool isCardFree(PyramidNode *node)
+    {
         if (!node || !node->card || !node->card->inPlay)
             return false;
         return !node->blocked;
     }
 
-    bool isValidMove(Card* c1, Card* c2) {
+    bool isValidMove(Card *c1, Card *c2)
+    {
         if (!c1 || !c2)
             return false;
         if (!c1->inPlay || !c2->inPlay)
@@ -661,53 +771,66 @@ public:
         return (c1->value + c2->value) == 13;
     }
 
-    bool isKing(Card* c) {
+    bool isKing(Card *c)
+    {
         if (!c)
             return false;
         return c->value == 13;
     }
 
-    void drawCardFromStock() {
+    void drawCardFromStock()
+    {
         playStockDrawSound();
         moves++;
 
-        if (stock.isEmpty()) {
-            Stack<Card*> tempStack;
+        if (stock.isEmpty())
+        {
+            Stack<Card *> tempStack;
 
-            StackNode<Card*>* backupNode = stockBackup.getTop();
-            while (backupNode) {
-                if (backupNode->data->inPlay) {
+            // Transfer backup to temp (reversing order)
+            StackNode<Card *> *backupNode = stockBackup.getTop();
+            while (backupNode)
+            {
+                if (backupNode->data->inPlay)
+                {
                     tempStack.push(backupNode->data);
                 }
                 backupNode = backupNode->next;
             }
 
+            // Clear and rebuild stock
             stock.clear();
-            while (!tempStack.isEmpty()) {
+            while (!tempStack.isEmpty())
+            {
                 stock.push(tempStack.pop());
             }
 
             stockPosition = 0;
         }
 
-        Card* card = stock.pop();
+        Card *card = stock.pop();
         card->faceUp = true;
         currentWasteCard = card;
         wasteHistory.push(card);
         stockPosition++;
     }
 
-    void removeCards() {
-        if (selectedCard1 && isKing(selectedCard1)) {
+    void removeCards()
+    {
+        if (selectedCard1 && isKing(selectedCard1))
+        {
             playCardMatchSound();
             selectedCard1->inPlay = false;
 
-            if (currentWasteCard == selectedCard1) {
+            if (currentWasteCard == selectedCard1)
+            {
                 wasteHistory.remove(currentWasteCard);
-                if (wasteHistory.isEmpty()) {
+                if (wasteHistory.isEmpty())
+                {
                     currentWasteCard = NULL;
                 }
-                else {
+                else
+                {
                     currentWasteCard = wasteHistory.peek();
                 }
             }
@@ -721,16 +844,20 @@ public:
             return;
         }
 
-        if (selectedCard1 && selectedCard2 && isValidMove(selectedCard1, selectedCard2)) {
+        if (selectedCard1 && selectedCard2 && isValidMove(selectedCard1, selectedCard2))
+        {
             playCardMatchSound();
             selectedCard1->inPlay = false;
             selectedCard2->inPlay = false;
 
-            if (currentWasteCard == selectedCard1 || currentWasteCard == selectedCard2) {
-                if (currentWasteCard == selectedCard1) {
+            if (currentWasteCard == selectedCard1 || currentWasteCard == selectedCard2)
+            {
+                if (currentWasteCard == selectedCard1)
+                {
                     wasteHistory.remove(selectedCard1);
                 }
-                if (currentWasteCard == selectedCard2) {
+                if (currentWasteCard == selectedCard2)
+                {
                     wasteHistory.remove(selectedCard2);
                 }
 
@@ -751,7 +878,8 @@ public:
             updateBlockedStatus();
             checkWinCondition();
         }
-        else if (selectedCard1 && selectedCard2) {
+        else if (selectedCard1 && selectedCard2)
+        {
             playCardMismatchSound();
             moves++;
             selectedCard1 = nullptr;
@@ -761,7 +889,8 @@ public:
         }
     }
 
-    void selectCard(Card* card, PyramidNode* node) {
+    void selectCard(Card *card, PyramidNode *node)
+    {
         if (!card || !card->inPlay)
             return;
 
@@ -770,7 +899,8 @@ public:
 
         playCardSelectSound();
 
-        if (isKing(card)) {
+        if (isKing(card))
+        {
             selectedCard1 = card;
             selectedNode1 = node;
             selectedCard2 = nullptr;
@@ -779,27 +909,34 @@ public:
             return;
         }
 
-        if (!selectedCard1) {
+        if (!selectedCard1)
+        {
             selectedCard1 = card;
             selectedNode1 = node;
         }
-        else if (selectedCard1 == card) {
+        else if (selectedCard1 == card)
+        {
             selectedCard1 = nullptr;
             selectedNode1 = nullptr;
         }
-        else {
+        else
+        {
             selectedCard2 = card;
             selectedNode2 = node;
             removeCards();
         }
     }
 
-    void checkWinCondition() {
+    void checkWinCondition()
+    {
         bool allRemoved = true;
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* current = pyramidRows[row];
-            while (current) {
-                if (current->card && current->card->inPlay) {
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *current = pyramidRows[row];
+            while (current)
+            {
+                if (current->card && current->card->inPlay)
+                {
                     allRemoved = false;
                     break;
                 }
@@ -809,78 +946,92 @@ public:
                 break;
         }
 
-        if (allRemoved) {
+        if (allRemoved)
+        {
             gameWon = true;
             saveCurrentGameScore();
             deleteSaveGame();
-            isNewGame = true;
-            currentGameScoreIndex = -1;
         }
     }
 
-    void checkLoseCondition() {
-        Stack<Card*> freeCards;
+    void checkLoseCondition()
+    {
+        if (!stock.isEmpty())
+        {
+            return;
+        }
 
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* current = pyramidRows[row];
-            while (current) {
-                if (isCardFree(current)) {
-                    freeCards.push(current->card);
+        Stack<Card *> accessibleCards;
+
+        // Collect ONLY free (unblocked) pyramid cards
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *current = pyramidRows[row];
+            while (current)
+            {
+                if (isCardFree(current))
+                {
+                    accessibleCards.push(current->card);
                 }
                 current = current->nextInRow;
             }
         }
 
-        if (currentWasteCard && currentWasteCard->inPlay) {
-            freeCards.push(currentWasteCard);
+        // Add ONLY current waste card (top of waste pile)
+        if (currentWasteCard && currentWasteCard->inPlay)
+        {
+            accessibleCards.push(currentWasteCard);
         }
 
-        StackNode<Card*>* checkNode = freeCards.getTop();
-        while (checkNode) {
+        // Check if any King exists in accessible cards
+        StackNode<Card *> *checkNode = accessibleCards.getTop();
+        while (checkNode)
+        {
             if (isKing(checkNode->data))
-                return;
+            {
+                return; // Valid move exists (can remove King)
+            }
             checkNode = checkNode->next;
         }
 
-        StackNode<Card*>* node1 = freeCards.getTop();
-        while (node1) {
-            StackNode<Card*>* node2 = node1->next;
-            while (node2) {
-                if (isValidMove(node1->data, node2->data)) {
-                    return;
+        // Check if any two accessible cards sum to 13
+        StackNode<Card *> *node1 = accessibleCards.getTop();
+        while (node1)
+        {
+            StackNode<Card *> *node2 = node1->next;
+            while (node2)
+            {
+                if (isValidMove(node1->data, node2->data))
+                {
+                    return; // Valid move exists (can remove pair)
                 }
                 node2 = node2->next;
             }
             node1 = node1->next;
         }
 
-        if (!stock.isEmpty())
-            return;
-
-        StackNode<Card*>* backupCheckNode = stockBackup.getTop();
-        while (backupCheckNode) {
-            if (backupCheckNode->data->inPlay)
-                return;
-            backupCheckNode = backupCheckNode->next;
-        }
-
+        // Stock empty + no valid moves = GAME LOST
         gameLost = true;
         saveCurrentGameScore();
         deleteSaveGame();
-        isNewGame = true;
-        currentGameScoreIndex = -1;
+        // Don't reset these immediately
     }
 
-    void handleMouseClick(int mouseX, int mouseY) {
+    void handleMouseClick(int mouseX, int mouseY)
+    {
         if (gameWon || gameLost)
             return;
 
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* current = pyramidRows[row];
-            while (current) {
-                if (current->card && current->card->inPlay) {
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *current = pyramidRows[row];
+            while (current)
+            {
+                if (current->card && current->card->inPlay)
+                {
                     Rectangle cardRect = getPyramidCardRect(row, current->col);
-                    if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, cardRect)) {
+                    if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, cardRect))
+                    {
                         selectCard(current->card, current);
                         return;
                     }
@@ -889,16 +1040,19 @@ public:
             }
         }
 
-        if (currentWasteCard && currentWasteCard->inPlay) {
+        if (currentWasteCard && currentWasteCard->inPlay)
+        {
             int uiStartY = 150 + 7 * (CARD_HEIGHT / 2 + CARD_SPACING);
-            Rectangle wasteRect = { 50, (float)uiStartY, CARD_WIDTH, CARD_HEIGHT };
-            if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, wasteRect)) {
+            Rectangle wasteRect = {50, (float)uiStartY, CARD_WIDTH, CARD_HEIGHT};
+            if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, wasteRect))
+            {
                 selectCard(currentWasteCard, nullptr);
                 return;
             }
         }
 
-        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, stockRect)) {
+        if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, stockRect))
+        {
             drawCardFromStock();
             selectedCard1 = nullptr;
             selectedCard2 = nullptr;
@@ -906,21 +1060,23 @@ public:
             selectedNode2 = nullptr;
             return;
         }
-
-
-        Rectangle getPyramidCardRect(int row, int col) {
-            int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
-            int x = startX + col * (CARD_WIDTH + CARD_SPACING);
-            int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
-            return { (float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT };
-        }
     }
 
-    void drawCard(Card* card, Rectangle rect, bool selected) {
+    Rectangle getPyramidCardRect(int row, int col)
+    {
+        int startX = (GetScreenWidth() / 2) - (row * (CARD_WIDTH + CARD_SPACING) / 2);
+        int x = startX + col * (CARD_WIDTH + CARD_SPACING);
+        int y = 100 + row * (CARD_HEIGHT / 2 + CARD_SPACING);
+        return {(float)x, (float)y, (float)CARD_WIDTH, (float)CARD_HEIGHT};
+    }
+
+    void drawCard(Card *card, Rectangle rect, bool selected)
+    {
         if (!card)
             return;
 
-        if (!card->faceUp) {
+        if (!card->faceUp)
+        {
             DrawRectangleRec(rect, DARKBLUE);
             DrawRectangleLinesEx(rect, 2, BLACK);
             DrawText("?", rect.x + rect.width / 2 - 10, rect.y + rect.height / 2 - 10, 30, WHITE);
@@ -928,66 +1084,74 @@ public:
         }
 
         Texture2D tex = cardTextures[card->suit][card->value - 1];
-        if (tex.id != 0) {
+
+        if (tex.id != 0)
+        {
             DrawTexturePro(
                 tex,
-                { 0, 0, (float)tex.width, (float)tex.height },
+                {0, 0, (float)tex.width, (float)tex.height},
                 rect,
-                { 0, 0 },
+                {0, 0},
                 0,
-                WHITE
-            );
+                WHITE);
         }
-        else {
+        else
+        {
             Color suitColor = (card->suit == 0 || card->suit == 1) ? RED : BLACK;
             DrawRectangleRec(rect, WHITE);
             DrawRectangleLinesEx(rect, 2, BLACK);
 
-            const char* values[13] = { "A","2","3","4","5","6","7","8","9","10","J","Q","K" };
+            const char *values[13] = {"A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"};
             DrawText(values[card->value - 1], rect.x + 10, rect.y + 10, 20, suitColor);
 
-            const char* suitSymbols[4] = { "♥", "♦", "♣", "♠" };
+            const char *suitSymbols[4] = {"♥", "♦", "♣", "♠"};
             DrawText(suitSymbols[card->suit], rect.x + 10, rect.y + 35, 25, suitColor);
         }
 
-        if (selected) {
+        if (selected)
+        {
             DrawRectangleLinesEx(rect, 3, YELLOW);
         }
     }
 
-    void drawBackground() {
-        if (background.id != 0) {
+    void drawBackground()
+    {
+        if (background.id != 0)
+        {
             DrawTexturePro(background,
-                { 0, 0, (float)background.width, (float)background.height },
-                { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() },
-                { 0, 0 }, 0, WHITE
-            );
+                           {0, 0, (float)background.width, (float)background.height},
+                           {0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()},
+                           {0, 0}, 0, WHITE);
         }
-        else {
+        else
+        {
             ClearBackground(DARKGREEN);
         }
     }
 
-    void renderHighScores() {
+    void renderHighScores()
+    {
         BeginDrawing();
         drawBackground();
 
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
 
-        DrawRectangle(0, 0, sw, sh, { 0, 0, 0, 150 });
+        DrawRectangle(0, 0, sw, sh, {0, 0, 0, 150});
 
         DrawText("TOP 5 HIGH SCORES", sw / 2 - 180, 100, 40, GOLD);
 
-        for (int i = 0; i < highScoreCount; i++) {
+        for (int i = 0; i < highScoreCount; i++)
+        {
             DrawText(TextFormat("%d. %d", i + 1, highScores[i]), sw / 2 - 50, 200 + i * 60, 35, WHITE);
         }
 
-        if (highScoreCount == 0) {
+        if (highScoreCount == 0)
+        {
             DrawText("No scores yet!", sw / 2 - 80, 200, 30, WHITE);
         }
 
-        Rectangle backBtn = { (float)(sw / 2 - 100), sh - 120, 200, 50 };
+        Rectangle backBtn = {(float)(sw / 2 - 100), sh - 120, 200, 50};
         DrawRectangleRec(backBtn, DARKGRAY);
         DrawRectangleLinesEx(backBtn, 2, WHITE);
         DrawText("BACK TO MENU", sw / 2 - 85, sh - 105, 20, WHITE);
@@ -995,17 +1159,20 @@ public:
         EndDrawing();
     }
 
-    void handleHighScoresClick(int mouseX, int mouseY) {
+    void handleHighScoresClick(int mouseX, int mouseY)
+    {
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
 
-        Rectangle backBtn = { (float)(sw / 2 - 100), sh - 120, 200, 50 };
-        if (CheckCollisionPointRec({ (float)mouseX, (float)mouseY }, backBtn)) {
+        Rectangle backBtn = {(float)(sw / 2 - 100), sh - 120, 200, 50};
+        if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, backBtn))
+        {
             currentState = MAIN_MENU;
         }
     }
 
-    void renderMainMenu() {
+    void renderMainMenu()
+    {
         BeginDrawing();
         drawBackground();
 
@@ -1014,23 +1181,23 @@ public:
 
         DrawText("PYRAMID SOLITAIRE", sw / 2 - 250, sh / 2 - 250, 50, GOLD);
 
-        Rectangle playBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 130), 300, 60 };
-        Rectangle loadBtn = { (float)(sw / 2 - 150), (float)(sh / 2 - 40), 300, 60 };
-        Rectangle instructBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 50), 300, 60 };
-        Rectangle highScoreBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 140), 300, 60 };
-        Rectangle exitBtn = { (float)(sw / 2 - 150), (float)(sh / 2 + 230), 300, 60 };
+        Rectangle playBtn = {(float)(sw / 2 - 150), (float)(sh / 2 - 130), 300, 60};
+        Rectangle instructBtn = {(float)(sw / 2 - 150), (float)(sh / 2 - 40), 300, 60};
+        Rectangle loadBtn = {(float)(sw / 2 - 150), (float)(sh / 2 + 50), 300, 60};
+        Rectangle highScoreBtn = {(float)(sw / 2 - 150), (float)(sh / 2 + 140), 300, 60};
+        Rectangle exitBtn = {(float)(sw / 2 - 150), (float)(sh / 2 + 230), 300, 60};
 
         DrawRectangleRec(playBtn, DARKGREEN);
         DrawRectangleLinesEx(playBtn, 3, GREEN);
         DrawText("NEW GAME", sw / 2 - 130, sh / 2 - 110, 25, WHITE);
 
-        DrawRectangleRec(loadBtn, MAROON);
-        DrawRectangleLinesEx(loadBtn, 3, RED);
-        DrawText("RESUME GAME", sw / 2 - 90, sh / 2 - 20, 25, WHITE);
-
         DrawRectangleRec(instructBtn, DARKBLUE);
         DrawRectangleLinesEx(instructBtn, 3, BLUE);
-        DrawText("INSTRUCTIONS", sw / 2 - 110, sh / 2 + 70, 25, WHITE);
+        DrawText("INSTRUCTIONS", sw / 2 - 110, sh / 2 - 20, 25, WHITE);
+
+        DrawRectangleRec(loadBtn, MAROON);
+        DrawRectangleLinesEx(loadBtn, 3, RED);
+        DrawText("RESUME GAME", sw / 2 - 90, sh / 2 + 70, 25, WHITE);
 
         DrawRectangleRec(highScoreBtn, ORANGE);
         DrawRectangleLinesEx(highScoreBtn, 3, RED);
@@ -1043,15 +1210,16 @@ public:
         EndDrawing();
     }
 
-    void renderInstructions() {
+    void renderInstructions()
+    {
         BeginDrawing();
         drawBackground();
 
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
 
-        DrawRectangle(sw / 2 - 400, 100, 800, 700, { 0, 0, 0, 200 });
-        DrawRectangleLinesEx({ (float)(sw / 2 - 400), 100, 800, 700 }, 3, GOLD);
+        DrawRectangle(sw / 2 - 400, 100, 800, 700, {0, 0, 0, 200});
+        DrawRectangleLinesEx({(float)(sw / 2 - 400), 100, 800, 700}, 3, GOLD);
 
         DrawText("HOW TO PLAY PYRAMID SOLITAIRE", sw / 2 - 280, 130, 30, GOLD);
 
@@ -1093,90 +1261,185 @@ public:
         y += spacing - 5;
         DrawText("Pair removed: +20 points", sw / 2 - 350, y, 20, WHITE);
 
-        Rectangle backBtn = { (float)(sw / 2 - 100), (float)(sh - 120), 200, 50 };
+        Rectangle backBtn = {(float)(sw / 2 - 100), (float)(sh - 120), 200, 50};
         DrawRectangleRec(backBtn, DARKGRAY);
         DrawRectangleLinesEx(backBtn, 2, WHITE);
         DrawText("BACK TO MENU", sw / 2 - 85, sh - 105, 20, WHITE);
 
         EndDrawing();
     }
-    void saveGame() {
-        SaveData data = {};
 
-        data.score = score;
-        data.moves = moves;
-        data.gameTime = gameTime;
-        data.gameWon = gameWon;
-        data.gameLost = gameLost;
+    void handleMainMenuClick(int mouseX, int mouseY)
+    {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
 
-        for (int i = 0; i < 52; i++) {
-            data.cardValues[i] = allCards[i].value;
-            data.cardSuits[i] = allCards[i].suit;
-            data.cardInPlay[i] = allCards[i].inPlay;
-            data.cardFaceUp[i] = allCards[i].faceUp;
+        Rectangle playBtn = {(float)(sw / 2 - 150), (float)(sh / 2 - 130), 300, 60};
+        Rectangle instructBtn = {(float)(sw / 2 - 150), (float)(sh / 2 - 40), 300, 60};
+        Rectangle loadBtn = {(float)(sw / 2 - 150), (float)(sh / 2 + 50), 300, 60};
+        Rectangle highScoreBtn = {(float)(sw / 2 - 150), (float)(sh / 2 + 140), 300, 60};
+        Rectangle exitBtn = {(float)(sw / 2 - 150), (float)(sh / 2 + 230), 300, 60};
+
+        if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, playBtn))
+        {
+            initGame();
+        }
+        else if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, instructBtn))
+        {
+            currentState = INSTRUCTIONS;
+        }
+        else if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, loadBtn))
+        {
+            if (loadGame())
+            {
+                currentState = PLAYING;
+            }
+            else
+            {
+                cout << "No saved game found!" << endl;
+            }
+        }
+        else if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, highScoreBtn))
+        {
+            currentState = HIGH_SCORES;
+        }
+        else if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, exitBtn))
+        {
+            CloseWindow();
+            exit(0);
+        }
+    }
+
+    void handleInstructionsClick(int mouseX, int mouseY)
+    {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+
+        Rectangle backBtn = {(float)(sw / 2 - 100), (float)(sh - 120), 200, 50};
+        if (CheckCollisionPointRec({(float)mouseX, (float)mouseY}, backBtn))
+        {
+            currentState = MAIN_MENU;
+        }
+    }
+
+    void render()
+    {
+        if (currentState == HIGH_SCORES)
+        {
+            renderHighScores();
+            return;
         }
 
-        int pyramidIndex = 0;
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* current = pyramidRows[row];
-            while (current) {
-                for (int i = 0; i < 52; i++) {
-                    if (current->card == &allCards[i]) {
-                        data.pyramidCardIndices[pyramidIndex++] = i;
-                        break;
+        if (currentState == MAIN_MENU)
+        {
+            renderMainMenu();
+            return;
+        }
+
+        if (currentState == INSTRUCTIONS)
+        {
+            renderInstructions();
+            return;
+        }
+
+        BeginDrawing();
+        drawBackground();
+
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+        DrawText(TextFormat("Moves: %d", moves), sw - 150, 20, 25, YELLOW);
+
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *current = pyramidRows[row];
+            while (current)
+            {
+                if (current->card && current->card->inPlay)
+                {
+                    Rectangle rect = getPyramidCardRect(row, current->col);
+                    bool selected = (current == selectedNode1 || current == selectedNode2);
+                    drawCard(current->card, rect, selected);
+
+                    if (current->blocked)
+                    {
+                        DrawRectangle(rect.x, rect.y, rect.width, 5, RED);
                     }
                 }
                 current = current->nextInRow;
             }
         }
 
-        data.stockSize = stock.getSize();
-        int stockIndex = 0;
-        StackNode<Card*>* stockNode = stock.getTop();
-        while (stockNode) {
-            for (int i = 0; i < 52; i++) {
-                if (stockNode->data == &allCards[i]) {
-                    data.stockCardIndices[stockIndex++] = i;
-                    break;
-                }
-            }
-            stockNode = stockNode->next;
+        int uiStartY = 150 + 7 * (CARD_HEIGHT / 2 + CARD_SPACING);
+
+        DrawText("WASTE", 50, uiStartY - 30, 20, WHITE);
+        if (currentWasteCard && currentWasteCard->inPlay)
+        {
+            Rectangle wasteRect = {50, (float)uiStartY, CARD_WIDTH, CARD_HEIGHT};
+            bool selected = (currentWasteCard == selectedCard1 || currentWasteCard == selectedCard2);
+            drawCard(currentWasteCard, wasteRect, selected);
         }
 
-        data.wasteHistorySize = wasteHistory.getSize();
-        int wasteIndex = 0;
-        StackNode<Card*>* wasteNode = wasteHistory.getTop();
-        while (wasteNode) {
-            for (int i = 0; i < 52; i++) {
-                if (wasteNode->data == &allCards[i]) {
-                    data.wasteCardIndices[wasteIndex++] = i;
-                    break;
-                }
-            }
-            wasteNode = wasteNode->next;
+        stockRect = {180.0f, (float)uiStartY, (float)CARD_WIDTH, (float)CARD_HEIGHT};
+        DrawText("STOCK", 180, uiStartY - 30, 20, WHITE);
+
+        if (stockTexture.id != 0)
+        {
+            DrawTexturePro(
+                stockTexture,
+                {0, 0, (float)stockTexture.width, (float)stockTexture.height},
+                stockRect,
+                {0, 0}, 0, WHITE);
+        }
+        else
+        {
+            DrawRectangleRec(stockRect, BLUE);
+            DrawRectangleLinesEx(stockRect, 2, WHITE);
         }
 
-        data.currentWasteIndex = -1;
-        if (currentWasteCard) {
-            for (int i = 0; i < 52; i++) {
-                if (currentWasteCard == &allCards[i]) {
-                    data.currentWasteIndex = i;
-                    break;
-                }
-            }
+        int totalSeconds = (int)gameTime;
+        int hours = totalSeconds / 3600;
+        int minutes = (totalSeconds % 3600) / 60;
+        int seconds = totalSeconds % 60;
+
+        DrawText(TextFormat("Score: %d", score), sw / 2 - 60, sh - 60, 25, WHITE);
+        DrawText(TextFormat("Time: %02d:%02d:%02d", hours, minutes, seconds), sw / 2 - 80, sh - 30, 25, WHITE);
+
+        Rectangle restartBtn = {(float)(sw - 150), (float)(sh - 60), 120, 50};
+        DrawRectangleRec(restartBtn, MAROON);
+        DrawRectangleLinesEx(restartBtn, 2, WHITE);
+        DrawText("RESTART", sw - 140, sh - 45, 20, WHITE);
+
+        if (gameWon)
+        {
+            DrawRectangle(0, 0, sw, sh, {0, 0, 0, 150});
+            DrawText("YOU WIN!", sw / 2 - 100, sh / 2 - 50, 40, GOLD);
+            DrawText(TextFormat("Score: %d", score), sw / 2 - 80, sh / 2 + 10, 30, WHITE);
+        }
+        else if (gameLost)
+        {
+            DrawRectangle(0, 0, sw, sh, {0, 0, 0, 150});
+            DrawText("NO MOVES LEFT!", sw / 2 - 150, sh / 2 - 50, 40, RED);
+            DrawText(TextFormat("Score: %d", score), sw / 2 - 80, sh / 2 + 10, 30, WHITE);
         }
 
-        ofstream out(SAVE_FILE, ios::binary);
-        if (out.is_open()) {
-            out.write((char*)&data, sizeof(SaveData));
-            out.close();
-            cout << "Game saved successfully!" << endl;
+        if (isPaused)
+        {
+            DrawRectangle(0, 0, sw, sh, {0, 0, 0, 150});
+            DrawText("PAUSED", sw / 2 - 80, sh / 2, 40, YELLOW);
+            DrawText("Press P to Resume", sw / 2 - 120, sh / 2 + 50, 25, WHITE);
         }
+
+        EndDrawing();
     }
-    void update(float deltaTime) {
-        if (IsKeyPressed(KEY_BACKSPACE)) {
-            if (currentState == PLAYING && !gameWon && !gameLost) {
-                if (score > 0) {
+
+    void update(float deltaTime)
+    {
+        if (IsKeyPressed(KEY_BACKSPACE))
+        {
+            if (currentState == PLAYING && !gameWon && !gameLost)
+            {
+                if (score > 0)
+                {
                     saveCurrentGameScore();
                 }
                 saveGame();
@@ -1186,43 +1449,53 @@ public:
             return;
         }
 
-        if (currentState == HIGH_SCORES) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (currentState == HIGH_SCORES)
+        {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            {
                 Vector2 mousePos = GetMousePosition();
                 handleHighScoresClick((int)mousePos.x, (int)mousePos.y);
             }
             return;
         }
 
-        if (currentState == MAIN_MENU) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (currentState == MAIN_MENU)
+        {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            {
                 Vector2 mousePos = GetMousePosition();
                 handleMainMenuClick((int)mousePos.x, (int)mousePos.y);
             }
             return;
         }
 
-        if (currentState == INSTRUCTIONS) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (currentState == INSTRUCTIONS)
+        {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            {
                 Vector2 mousePos = GetMousePosition();
                 handleInstructionsClick((int)mousePos.x, (int)mousePos.y);
             }
             return;
         }
 
-       
-        if (IsKeyPressed(KEY_P) && !gameWon && !gameLost) {
+        if (IsKeyPressed(KEY_P) && !gameWon && !gameLost)
+        {
             isPaused = !isPaused;
         }
 
-        if (isPaused) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (isPaused)
+        {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            {
                 Vector2 mousePos = GetMousePosition();
                 int sw = GetScreenWidth();
                 int sh = GetScreenHeight();
-                Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
-                if (CheckCollisionPointRec(mousePos, restartBtn)) {
-                    if (score > 0) {
+                Rectangle restartBtn = {(float)(sw - 150), (float)(sh - 60), 120, 50};
+                if (CheckCollisionPointRec(mousePos, restartBtn))
+                {
+                    if (score > 0)
+                    {
                         saveCurrentGameScore();
                     }
                     initGame();
@@ -1232,25 +1505,30 @@ public:
             return;
         }
 
-        if (!gameWon && !gameLost) {
+        if (!gameWon && !gameLost)
+        {
             gameTime += deltaTime;
 
             static float checkTimer = 0.0f;
             checkTimer += deltaTime;
-            if (checkTimer >= 1.0f) {
+            if (checkTimer >= 1.0f)
+            {
                 checkLoseCondition();
                 checkTimer = 0.0f;
             }
         }
 
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+        {
             Vector2 mousePos = GetMousePosition();
 
             int sw = GetScreenWidth();
             int sh = GetScreenHeight();
-            Rectangle restartBtn = { (float)(sw - 150), (float)(sh - 60), 120, 50 };
-            if (CheckCollisionPointRec(mousePos, restartBtn)) {
-                if (score > 0) {
+            Rectangle restartBtn = {(float)(sw - 150), (float)(sh - 60), 120, 50};
+            if (CheckCollisionPointRec(mousePos, restartBtn))
+            {
+                if (score > 0)
+                {
                     saveCurrentGameScore();
                 }
                 initGame();
@@ -1261,14 +1539,107 @@ public:
         }
     }
 
-    bool loadGame() {
+    void saveGame()
+    {
+        SaveData data = {};
+
+        data.score = score;
+        data.moves = moves;
+        data.gameTime = gameTime;
+        data.gameWon = gameWon;
+        data.gameLost = gameLost;
+
+        for (int i = 0; i < 52; i++)
+        {
+            data.cardValues[i] = allCards[i].value;
+            data.cardSuits[i] = allCards[i].suit;
+            data.cardInPlay[i] = allCards[i].inPlay;
+            data.cardFaceUp[i] = allCards[i].faceUp;
+        }
+
+        int pyramidIndex = 0;
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *current = pyramidRows[row];
+            while (current)
+            {
+                for (int i = 0; i < 52; i++)
+                {
+                    if (current->card == &allCards[i])
+                    {
+                        data.pyramidCardIndices[pyramidIndex++] = i;
+                        break;
+                    }
+                }
+                current = current->nextInRow;
+            }
+        }
+
+        // Save stack contents by traversing
+        data.stockSize = stock.getSize();
+        int stockIndex = 0;
+        StackNode<Card *> *stockNode = stock.getTop();
+        while (stockNode)
+        {
+            for (int i = 0; i < 52; i++)
+            {
+                if (stockNode->data == &allCards[i])
+                {
+                    data.stockCardIndices[stockIndex++] = i;
+                    break;
+                }
+            }
+            stockNode = stockNode->next;
+        }
+
+        data.wasteHistorySize = wasteHistory.getSize();
+        int wasteIndex = 0;
+        StackNode<Card *> *wasteNode = wasteHistory.getTop();
+        while (wasteNode)
+        {
+            for (int i = 0; i < 52; i++)
+            {
+                if (wasteNode->data == &allCards[i])
+                {
+                    data.wasteCardIndices[wasteIndex++] = i;
+                    break;
+                }
+            }
+            wasteNode = wasteNode->next;
+        }
+
+        data.currentWasteIndex = -1;
+        if (currentWasteCard)
+        {
+            for (int i = 0; i < 52; i++)
+            {
+                if (currentWasteCard == &allCards[i])
+                {
+                    data.currentWasteIndex = i;
+                    break;
+                }
+            }
+        }
+
+        ofstream out(SAVE_FILE, ios::binary);
+        if (out.is_open())
+        {
+            out.write((char *)&data, sizeof(SaveData));
+            out.close();
+            cout << "Game saved successfully!" << endl;
+        }
+    }
+
+    bool loadGame()
+    {
         ifstream in(SAVE_FILE, ios::binary);
-        if (!in.is_open()) {
+        if (!in.is_open())
+        {
             return false;
         }
 
         SaveData data = {};
-        in.read((char*)&data, sizeof(SaveData));
+        in.read((char *)&data, sizeof(SaveData));
         in.close();
 
         clearPyramid();
@@ -1281,7 +1652,8 @@ public:
         selectedNode1 = nullptr;
         selectedNode2 = nullptr;
 
-        for (int i = 0; i < 52; i++) {
+        for (int i = 0; i < 52; i++)
+        {
             allCards[i].value = data.cardValues[i];
             allCards[i].suit = data.cardSuits[i];
             allCards[i].inPlay = data.cardInPlay[i];
@@ -1296,64 +1668,78 @@ public:
 
         isNewGame = false;
         currentGameScoreIndex = -1;
-        for (int i = 0; i < highScoreCount; i++) {
-            if (highScores[i] == score) {
+        for (int i = 0; i < highScoreCount; i++)
+        {
+            if (highScores[i] == score)
+            {
                 currentGameScoreIndex = i;
                 break;
             }
         }
 
-        PyramidNode* prevRowHeads[7];
+        PyramidNode *prevRowHeads[7];
         for (int i = 0; i < 7; i++)
             prevRowHeads[i] = NULL;
 
         int pyramidCardIdx = 0;
 
-        for (int row = 0; row < 7; row++) {
-            PyramidNode* rowHead = nullptr;
-            PyramidNode* rowTail = nullptr;
+        for (int row = 0; row < 7; row++)
+        {
+            PyramidNode *rowHead = nullptr;
+            PyramidNode *rowTail = nullptr;
 
-            for (int col = 0; col <= row; col++) {
+            for (int col = 0; col <= row; col++)
+            {
                 int cardArrayIndex = data.pyramidCardIndices[pyramidCardIdx++];
-                Card* card = &allCards[cardArrayIndex];
-                PyramidNode* node = new PyramidNode(card, row, col);
+                Card *card = &allCards[cardArrayIndex];
+                PyramidNode *node = new PyramidNode(card, row, col);
 
-                if (!rowHead) {
+                if (!rowHead)
+                {
                     rowHead = node;
                     rowTail = node;
                 }
-                else {
+                else
+                {
                     rowTail->nextInRow = node;
                     rowTail = node;
                 }
 
-                if (row > 0) {
-                    if (col > 0) {
-                        PyramidNode* leftParent = prevRowHeads[row - 1];
+                if (row > 0)
+                {
+                    if (col > 0)
+                    {
+                        PyramidNode *leftParent = prevRowHeads[row - 1];
                         int count = 0;
-                        while (leftParent && count < col - 1) {
+                        while (leftParent && count < col - 1)
+                        {
                             leftParent = leftParent->nextInRow;
                             count++;
                         }
-                        if (leftParent) {
+                        if (leftParent)
+                        {
                             leftParent->right = node;
                         }
                     }
 
-                    if (col < row) {
-                        PyramidNode* rightParent = prevRowHeads[row - 1];
+                    if (col < row)
+                    {
+                        PyramidNode *rightParent = prevRowHeads[row - 1];
                         int count = 0;
-                        while (rightParent && count < col) {
+                        while (rightParent && count < col)
+                        {
                             rightParent = rightParent->nextInRow;
                             count++;
                         }
-                        if (rightParent) {
+                        if (rightParent)
+                        {
                             rightParent->left = node;
                         }
                     }
                 }
 
-                if (row == 6) {
+                if (row == 6)
+                {
                     node->blocked = false;
                 }
             }
@@ -1362,13 +1748,17 @@ public:
             prevRowHeads[row] = rowHead;
         }
 
-        for (int i = data.stockSize - 1; i >= 0; i--) {
+        // Restore stock stack in reverse order to maintain LIFO
+        for (int i = data.stockSize - 1; i >= 0; i--)
+        {
             int cardArrayIndex = data.stockCardIndices[i];
             stock.push(&allCards[cardArrayIndex]);
             stockBackup.push(&allCards[cardArrayIndex]);
         }
 
-        for (int i = data.wasteHistorySize - 1; i >= 0; i--) {
+        // Restore waste history stack in reverse order
+        for (int i = data.wasteHistorySize - 1; i >= 0; i--)
+        {
             int cardArrayIndex = data.wasteCardIndices[i];
             wasteHistory.push(&allCards[cardArrayIndex]);
         }
@@ -1384,28 +1774,33 @@ public:
         return true;
     }
 
-    bool hasSaveGame() {
+    bool hasSaveGame()
+    {
         ifstream file(SAVE_FILE);
         return file.good();
+    }
 
-
-        if (remove(SAVE_FILE) == 0) {
+    void deleteSaveGame()
+    {
+        if (remove(SAVE_FILE) == 0)
+        {
             cout << "Save file deleted." << endl;
         }
     }
-
 };
 
-int main() {
+int main()
+{
     const int screenWidth = 1400;
     const int screenHeight = 950;
 
-    InitWindow(screenWidth, screenHeight, "Pyramid Solitaire Game - STACK BASED");
+    InitWindow(screenWidth, screenHeight, "Pyramid Solitaire Game by Stack");
     SetTargetFPS(60);
 
     PyramidSolitaire game;
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose())
+    {
         game.update(GetFrameTime());
         game.render();
     }
