@@ -1021,20 +1021,21 @@ public:
         if (allRemoved)
         {
             gameWon = true;
-            // Save final score when game is won
             saveCurrentGameScore();
             deleteSaveGame();
-            // Reset for next game
-            isNewGame = true;
-            currentGameScoreIndex = -1;
         }
     }
 
     void checkLoseCondition()
     {
-        LinkedList<Card *> freeCards;
+        if (!stock.isEmpty())
+        {
+            return;
+        }
 
-        // Collect all free pyramid cards
+        LinkedList<Card *> accessibleCards;
+
+        // Collect only ACCESSIBLE cards (free pyramid cards)
         for (int row = 0; row < 7; row++)
         {
             PyramidNode *current = pyramidRows[row];
@@ -1042,70 +1043,31 @@ public:
             {
                 if (isCardFree(current))
                 {
-                    freeCards.pushBack(current->card);
+                    accessibleCards.pushBack(current->card);
                 }
                 current = current->nextInRow;
             }
         }
 
-        // Add current waste card if it exists
+        // Add ONLY current waste card (top of waste pile)
         if (currentWasteCard && currentWasteCard->inPlay)
         {
-            freeCards.pushBack(currentWasteCard);
+            accessibleCards.pushBack(currentWasteCard);
         }
 
-        // Add remaining stock cards (not yet drawn)
-        ListNode<Card *> *stockNode = stock.getHead();
-        while (stockNode)
-        {
-            if (stockNode->data->inPlay)
-            {
-                freeCards.pushBack(stockNode->data);
-            }
-            stockNode = stockNode->next;
-        }
-
-        // If stock is empty, check if any cards can be recycled from backup
-        if (stock.isEmpty())
-        {
-            ListNode<Card *> *backupNode = stockBackup.getHead();
-            while (backupNode)
-            {
-                if (backupNode->data->inPlay)
-                {
-                    // Check if this card is NOT already in freeCards (not in wasteHistory)
-                    bool alreadyAdded = false;
-                    ListNode<Card *> *checkNode = freeCards.getHead();
-                    while (checkNode)
-                    {
-                        if (checkNode->data == backupNode->data)
-                        {
-                            alreadyAdded = true;
-                            break;
-                        }
-                        checkNode = checkNode->next;
-                    }
-
-                    if (!alreadyAdded)
-                    {
-                        freeCards.pushBack(backupNode->data);
-                    }
-                }
-                backupNode = backupNode->next;
-            }
-        }
-
-        // Check if any card is a King (can be removed alone)
-        ListNode<Card *> *checkNode = freeCards.getHead();
+        // Check if any King exists in accessible cards
+        ListNode<Card *> *checkNode = accessibleCards.getHead();
         while (checkNode)
         {
             if (isKing(checkNode->data))
-                return; // Valid move exists
+            {
+                return; // Valid move exists (can remove King)
+            }
             checkNode = checkNode->next;
         }
 
-        // Check if any two cards sum to 13
-        ListNode<Card *> *node1 = freeCards.getHead();
+        // Check if any two accessible cards sum to 13
+        ListNode<Card *> *node1 = accessibleCards.getHead();
         while (node1)
         {
             ListNode<Card *> *node2 = node1->next;
@@ -1113,21 +1075,18 @@ public:
             {
                 if (isValidMove(node1->data, node2->data))
                 {
-                    return; // Valid move exists
+                    return; // Valid move exists (can remove pair)
                 }
                 node2 = node2->next;
             }
             node1 = node1->next;
         }
 
-        // If we reach here, no valid moves exist
+        // Stock empty + no valid moves = GAME LOST
         gameLost = true;
         saveCurrentGameScore();
         deleteSaveGame();
-        isNewGame = true;
-        currentGameScoreIndex = -1;
     }
-
     void handleMouseClick(int mouseX, int mouseY)
     {
         if (gameWon || gameLost)
